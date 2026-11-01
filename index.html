@@ -66,6 +66,7 @@
               <input id="search-input" type="search" placeholder="Find a task..." autocomplete="off" />
               <kbd>/</kbd>
             </label>
+            <button class="button button-assistant" id="open-assistant-button" type="button"><span class="assistant-mark" aria-hidden="true">AI</span>Assistant</button>
             <button class="button button-primary" id="new-task-button" type="button">New task <span aria-hidden="true">+</span></button>
           </div>
         </section>
@@ -120,6 +121,37 @@
         </div>
         <div class="dialog-actions"><button class="button button-quiet" id="cancel-dialog-button" type="button">Cancel</button><button class="button button-primary" type="submit" id="save-task-button">Add task</button></div>
       </form>
+    </dialog>
+
+    <dialog class="assistant-dialog" id="assistant-dialog" aria-labelledby="assistant-title">
+      <section class="assistant-panel">
+        <header class="assistant-header">
+          <div>
+            <p class="eyebrow">FIELDNOTES AI</p>
+            <h2 id="assistant-title">Board assistant</h2>
+          </div>
+          <button class="close-button" id="close-assistant-button" type="button" aria-label="Close assistant">&times;</button>
+        </header>
+        <p class="assistant-disclosure">Your task titles and notes are sent to OpenRouter and its selected model provider when you ask for help. Suggestions never change your board automatically.</p>
+        <div class="assistant-shortcuts" aria-label="Assistant actions">
+          <button class="assistant-shortcut" type="button" data-assistant-action="summary">Summarize board</button>
+          <button class="assistant-shortcut" type="button" data-assistant-action="prioritize">Prioritize work</button>
+          <div class="breakdown-control">
+            <label class="visually-hidden" for="assistant-task-select">Choose a task to break down</label>
+            <select class="form-input" id="assistant-task-select"><option value="">Choose a task to break down</option></select>
+            <button class="assistant-shortcut" id="breakdown-task-button" type="button">Break down</button>
+          </div>
+        </div>
+        <div class="assistant-transcript" id="assistant-transcript" role="log" aria-live="polite" aria-relevant="additions text">
+          <p class="assistant-welcome">Ask about your board or choose an action above.</p>
+        </div>
+        <p class="assistant-status" id="assistant-status" role="status" aria-live="polite"></p>
+        <form class="assistant-form" id="assistant-form">
+          <label class="visually-hidden" for="assistant-input">Message the board assistant</label>
+          <textarea id="assistant-input" maxlength="1200" rows="2" placeholder="Ask about your tasks..." required></textarea>
+          <button class="button button-primary" id="assistant-send-button" type="submit" aria-label="Send message">Send</button>
+        </form>
+      </section>
     </dialog>
   </body>
 </html>

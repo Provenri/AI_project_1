@@ -20,6 +20,14 @@ const idField = document.querySelector('#task-id');
 const searchField = document.querySelector('#search-input');
 const authForm = document.querySelector('#auth-form');
 const passwordField = document.querySelector('#auth-password');
+const assistantDialog = document.querySelector('#assistant-dialog');
+const assistantTranscript = document.querySelector('#assistant-transcript');
+const assistantInput = document.querySelector('#assistant-input');
+const assistantForm = document.querySelector('#assistant-form');
+const assistantTaskSelect = document.querySelector('#assistant-task-select');
+
+let assistantMessages = [];
+let assistantRequestInFlight = false;
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
@@ -62,6 +70,75 @@ function render() {
     document.querySelector(`[data-list="${status}"]`).innerHTML = visibleTasks.map(taskMarkup).join('');
     document.querySelector(`[data-count="${status}"]`).textContent = String(statusTasks.length);
     document.querySelector(`[data-empty="${status}"]`).classList.toggle('visible', visibleTasks.length === 0);
+  }
+  populateAssistantTaskSelect();
+}
+
+function populateAssistantTaskSelect() {
+  const selectedTaskId = assistantTaskSelect.value;
+  assistantTaskSelect.replaceChildren(new Option('Choose a task to break down', ''));
+  for (const task of tasks) {
+    const option = new Option(task.title, task.id);
+    assistantTaskSelect.add(option);
+  }
+  if (tasks.some((task) => task.id === selectedTaskId)) assistantTaskSelect.value = selectedTaskId;
+}
+
+function renderAssistantTranscript() {
+  assistantTranscript.replaceChildren();
+  if (!assistantMessages.length) {
+    const welcome = document.createElement('p');
+    welcome.className = 'assistant-welcome';
+    welcome.textContent = 'Ask about your board or choose an action above.';
+    assistantTranscript.append(welcome);
+    return;
+  }
+
+  for (const message of assistantMessages) {
+    const item = document.createElement('div');
+    item.className = `assistant-message ${message.role === 'user' ? 'assistant-message-user' : 'assistant-message-ai'}`;
+    item.textContent = message.content;
+    assistantTranscript.append(item);
+  }
+  assistantTranscript.scrollTop = assistantTranscript.scrollHeight;
+}
+
+function setAssistantStatus(message, isError = false) {
+  const status = document.querySelector('#assistant-status');
+  status.textContent = message;
+  status.classList.toggle('is-error', isError);
+}
+
+function setAssistantBusy(isBusy) {
+  assistantRequestInFlight = isBusy;
+  document.querySelector('#assistant-send-button').disabled = isBusy;
+  document.querySelectorAll('.assistant-shortcut').forEach((button) => { button.disabled = isBusy; });
+  assistantTaskSelect.disabled = isBusy;
+}
+
+async function askAssistant(action, prompt, taskId = '') {
+  if (!currentUser || assistantRequestInFlight) return;
+  assistantMessages.push({ role: 'user', content: prompt });
+  assistantMessages = assistantMessages.slice(-10);
+  renderAssistantTranscript();
+  setAssistantStatus('Claude is thinking...');
+  setAssistantBusy(true);
+
+  try {
+    const messages = assistantMessages.slice(-8).map(({ role, content }) => ({ role, content: content.slice(0, 1200) }));
+    const { data, error } = await supabaseClient.functions.invoke('kanban-assistant', {
+      body: { action, messages, taskId },
+    });
+    if (error) throw error;
+    if (typeof data?.reply !== 'string' || !data.reply.trim()) throw new Error('The assistant returned an empty reply.');
+    assistantMessages.push({ role: 'assistant', content: data.reply.trim() });
+    assistantMessages = assistantMessages.slice(-10);
+    renderAssistantTranscript();
+    setAssistantStatus('');
+  } catch (error) {
+    setAssistantStatus(`Could not reach the assistant: ${error.message}`, true);
+  } finally {
+    setAssistantBusy(false);
   }
 }
 
@@ -180,6 +257,8 @@ async function applySession(session) {
 
   if (!currentUser) {
     tasks = [];
+    assistantMessages = [];
+    renderAssistantTranscript();
     render();
     setCloudStatus('Sign in to sync');
     return;
@@ -360,6 +439,46 @@ document.querySelectorAll('.column').forEach((column) => {
     column.classList.remove('is-drop-target');
     void moveTask(taskId, column.dataset.status);
   });
+});
+
+document.querySelector('#open-assistant-button').addEventListener('click', () => {
+  renderAssistantTranscript();
+  setAssistantStatus('');
+  assistantDialog.showModal();
+  assistantInput.focus();
+});
+
+document.querySelector('#close-assistant-button').addEventListener('click', () => assistantDialog.close());
+assistantDialog.addEventListener('click', (event) => {
+  if (event.target === assistantDialog) assistantDialog.close();
+});
+
+document.querySelectorAll('[data-assistant-action]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const action = button.dataset.assistantAction;
+    const prompt = action === 'summary'
+      ? 'Summarize my Kanban board. Note progress, completed work, and any obvious bottlenecks.'
+      : 'Prioritize my open tasks. Recommend up to three tasks to work on next and briefly explain why. Do not change their priority or status.';
+    void askAssistant(action, prompt);
+  });
+});
+
+document.querySelector('#breakdown-task-button').addEventListener('click', () => {
+  const taskId = assistantTaskSelect.value;
+  const task = tasks.find((item) => item.id === taskId);
+  if (!task) {
+    setAssistantStatus('Choose a task first.', true);
+    return;
+  }
+  void askAssistant('breakdown', `Break this task into 3 to 6 small, actionable subtasks. Keep the suggestions concise and do not add them to my board: ${task.title}`, task.id);
+});
+
+assistantForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const prompt = assistantInput.value.trim();
+  if (!prompt) return;
+  assistantInput.value = '';
+  void askAssistant('chat', prompt);
 });
 
 render();

@@ -1,0 +1,4 @@
+project_id = "fieldnotes-kanban"
+
+[functions.kanban-assistant]
+verify_jwt = true

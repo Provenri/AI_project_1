@@ -16,6 +16,24 @@ The URL and publishable/anon key are intended for browser use. Never put a Supab
 
 On the first sign-in, existing browser tasks are copied into that account's Supabase table once. The browser copy is removed after the database confirms the import.
 
+## Deploy the AI assistant
+
+The assistant uses OpenRouter's `openrouter/free` model router through a Supabase Edge Function. It selects from available free models and only falls back to other free models. OpenRouter currently limits free-model requests to 50 per day for accounts that haven't purchased credits; see OpenRouter's usage information for current limits.
+
+1. Create an API key in your OpenRouter account.
+2. In your Supabase project, open **Edge Functions → Secrets** and add `OPENROUTER_API_KEY`. Keep the key out of GitHub and `supabase-config.js`.
+3. Deploy the function named `kanban-assistant` from `supabase/functions/kanban-assistant/index.ts`. You can deploy it in the Supabase Dashboard under **Edge Functions**, or use the CLI below (Node.js/npm required):
+
+	```powershell
+	npx supabase login
+	npx supabase link --project-ref rcujgnbbbgclatffbmml
+	npx supabase functions deploy kanban-assistant
+	```
+
+4. Commit and push the website changes to `main` so GitHub Pages deploys the assistant interface.
+
+The function verifies the signed-in Supabase user and reads tasks under the existing row-level security policies. OpenRouter and its selected model provider receive the task titles, notes, and your prompt to generate suggestions. Suggestions do not change the board automatically. Review OpenRouter's privacy settings and usage limits before sharing the site.
+
 ## Run locally
 
 You can open `index.html` to preview the page, but Supabase authentication needs an allowed web URL. For a full sign-in test, use the GitHub Pages address configured in Supabase. No build step is needed.
