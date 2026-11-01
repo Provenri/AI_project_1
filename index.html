@@ -6,6 +6,8 @@
     <meta name="theme-color" content="#f2f4f1" />
     <title>Fieldnotes | Kanban Board</title>
     <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
     <script src="script.js" defer></script>
   </head>
   <body>
@@ -15,58 +17,90 @@
         <span>fieldnotes</span>
       </a>
       <div class="topbar-right">
-        <span class="save-state"><span class="save-dot"></span>Saved in this browser</span>
-        <span class="avatar" aria-label="Your board">Y</span>
+        <span class="save-state"><span class="save-dot"></span><span id="save-label">Cloud sync unavailable</span></span>
+        <span class="account-email" id="account-email"></span>
+        <span class="avatar" id="avatar" aria-label="Your account">Y</span>
+        <button class="button button-quiet sign-out-button" id="sign-out-button" type="button" hidden>Sign out</button>
       </div>
     </header>
 
     <main class="workspace">
-      <section class="board-heading" aria-labelledby="page-title">
-        <div>
-          <p class="eyebrow">PERSONAL WORKSPACE <span aria-hidden="true">/</span> BOARD</p>
-          <h1 id="page-title">My Kanban</h1>
-          <p class="board-subtitle">A clear view of what&rsquo;s moving and what&rsquo;s next.</p>
-        </div>
-        <div class="heading-actions">
-          <label class="search-box">
-            <span class="search-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Search tasks</span>
-            <input id="search-input" type="search" placeholder="Find a task..." autocomplete="off" />
-            <kbd>/</kbd>
-          </label>
-          <button class="button button-primary" id="new-task-button" type="button">New task <span aria-hidden="true">+</span></button>
-        </div>
+      <section class="auth-panel setup-panel" id="setup-panel" aria-labelledby="setup-title" hidden>
+        <p class="eyebrow">ONE-TIME SETUP</p>
+        <h1 id="setup-title">Connect your board</h1>
+        <p class="auth-copy" id="setup-message">Add your Supabase project URL and publishable key to <code>supabase-config.js</code>.</p>
+        <p class="auth-footnote">Use the publishable key only. Never put a secret or service-role key in this website.</p>
       </section>
 
-      <section class="board" aria-label="Kanban board">
-        <section class="column" data-status="todo" aria-labelledby="todo-title">
-          <div class="column-heading">
-            <div class="column-title-wrap"><span class="column-indicator indicator-todo"></span><h2 id="todo-title">To do</h2><span class="task-count" data-count="todo">0</span></div>
-            <button class="text-button add-column-task" type="button" data-add-status="todo" aria-label="Add task to To do">+ Add task</button>
-          </div>
-          <div class="task-list" data-list="todo" role="list"></div>
-          <p class="empty-state" data-empty="todo">Nothing queued. Add a task to get started.</p>
-        </section>
-
-        <section class="column" data-status="progress" aria-labelledby="progress-title">
-          <div class="column-heading">
-            <div class="column-title-wrap"><span class="column-indicator indicator-progress"></span><h2 id="progress-title">In progress</h2><span class="task-count" data-count="progress">0</span></div>
-            <button class="text-button add-column-task" type="button" data-add-status="progress" aria-label="Add task to In progress">+ Add task</button>
-          </div>
-          <div class="task-list" data-list="progress" role="list"></div>
-          <p class="empty-state" data-empty="progress">A little breathing room. Move a task here when you start.</p>
-        </section>
-
-        <section class="column" data-status="done" aria-labelledby="done-title">
-          <div class="column-heading">
-            <div class="column-title-wrap"><span class="column-indicator indicator-done"></span><h2 id="done-title">Done</h2><span class="task-count" data-count="done">0</span></div>
-            <button class="text-button add-column-task" type="button" data-add-status="done" aria-label="Add task to Done">+ Add task</button>
-          </div>
-          <div class="task-list" data-list="done" role="list"></div>
-          <p class="empty-state" data-empty="done">Finished tasks will land here.</p>
-        </section>
+      <section class="auth-panel" id="auth-panel" aria-labelledby="auth-title" hidden>
+        <div class="auth-heading">
+          <p class="eyebrow">PERSONAL WORKSPACE</p>
+          <h1 id="auth-title">Your board, wherever you are</h1>
+          <p class="auth-copy">Sign in to keep your tasks synced across devices.</p>
+        </div>
+        <div class="auth-mode" role="group" aria-label="Account action">
+          <button class="auth-mode-button is-active" type="button" data-auth-mode="sign-in" aria-pressed="true">Sign in</button>
+          <button class="auth-mode-button" type="button" data-auth-mode="sign-up" aria-pressed="false">Create account</button>
+        </div>
+        <form id="auth-form">
+          <label class="field-label" for="auth-email">Email</label>
+          <input class="form-input" id="auth-email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
+          <label class="field-label" for="auth-password">Password</label>
+          <input class="form-input" id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" required placeholder="At least 8 characters" />
+          <p class="form-message" id="auth-message" role="status" aria-live="polite"></p>
+          <button class="button button-primary auth-submit" id="auth-submit" type="submit">Sign in</button>
+        </form>
       </section>
-      <p class="board-hint"><span aria-hidden="true">&harr;</span> Drag a task to move it between columns</p>
+
+      <div id="board-app" hidden>
+        <section class="board-heading" aria-labelledby="page-title">
+          <div>
+            <p class="eyebrow">PERSONAL WORKSPACE <span aria-hidden="true">/</span> BOARD</p>
+            <h1 id="page-title">My Kanban</h1>
+            <p class="board-subtitle">A clear view of what&rsquo;s moving and what&rsquo;s next.</p>
+          </div>
+          <div class="heading-actions">
+            <label class="search-box">
+              <span class="search-icon" aria-hidden="true"></span>
+              <span class="visually-hidden">Search tasks</span>
+              <input id="search-input" type="search" placeholder="Find a task..." autocomplete="off" />
+              <kbd>/</kbd>
+            </label>
+            <button class="button button-primary" id="new-task-button" type="button">New task <span aria-hidden="true">+</span></button>
+          </div>
+        </section>
+
+        <p class="board-feedback" id="board-feedback" role="status" aria-live="polite"></p>
+        <section class="board" aria-label="Kanban board">
+          <section class="column" data-status="todo" aria-labelledby="todo-title">
+            <div class="column-heading">
+              <div class="column-title-wrap"><span class="column-indicator indicator-todo"></span><h2 id="todo-title">To do</h2><span class="task-count" data-count="todo">0</span></div>
+              <button class="text-button add-column-task" type="button" data-add-status="todo" aria-label="Add task to To do">+ Add task</button>
+            </div>
+            <div class="task-list" data-list="todo" role="list"></div>
+            <p class="empty-state" data-empty="todo">Nothing queued. Add a task to get started.</p>
+          </section>
+
+          <section class="column" data-status="progress" aria-labelledby="progress-title">
+            <div class="column-heading">
+              <div class="column-title-wrap"><span class="column-indicator indicator-progress"></span><h2 id="progress-title">In progress</h2><span class="task-count" data-count="progress">0</span></div>
+              <button class="text-button add-column-task" type="button" data-add-status="progress" aria-label="Add task to In progress">+ Add task</button>
+            </div>
+            <div class="task-list" data-list="progress" role="list"></div>
+            <p class="empty-state" data-empty="progress">A little breathing room. Move a task here when you start.</p>
+          </section>
+
+          <section class="column" data-status="done" aria-labelledby="done-title">
+            <div class="column-heading">
+              <div class="column-title-wrap"><span class="column-indicator indicator-done"></span><h2 id="done-title">Done</h2><span class="task-count" data-count="done">0</span></div>
+              <button class="text-button add-column-task" type="button" data-add-status="done" aria-label="Add task to Done">+ Add task</button>
+            </div>
+            <div class="task-list" data-list="done" role="list"></div>
+            <p class="empty-state" data-empty="done">Finished tasks will land here.</p>
+          </section>
+        </section>
+        <p class="board-hint"><span aria-hidden="true">&harr;</span> Drag a task to move it between columns</p>
+      </div>
     </main>
 
     <dialog class="task-dialog" id="task-dialog" aria-labelledby="dialog-title">
