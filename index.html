@@ -42,11 +42,11 @@
           <button class="auth-mode-button is-active" type="button" data-auth-mode="sign-in" aria-pressed="true">Sign in</button>
           <button class="auth-mode-button" type="button" data-auth-mode="sign-up" aria-pressed="false">Create account</button>
         </div>
-        <form id="auth-form">
+        <form id="auth-form" autocomplete="off">
           <label class="field-label" for="auth-email">Email</label>
           <input class="form-input" id="auth-email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
           <label class="field-label" for="auth-password">Password</label>
-          <input class="form-input" id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" required placeholder="At least 8 characters" />
+          <input class="form-input" id="auth-password" name="password" type="password" autocomplete="off" minlength="8" required placeholder="At least 8 characters" />
           <p class="form-message" id="auth-message" role="status" aria-live="polite"></p>
           <button class="button button-primary auth-submit" id="auth-submit" type="submit">Sign in</button>
         </form>

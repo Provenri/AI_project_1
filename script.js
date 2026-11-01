@@ -19,6 +19,7 @@ const priorityField = document.querySelector('#task-priority');
 const idField = document.querySelector('#task-id');
 const searchField = document.querySelector('#search-input');
 const authForm = document.querySelector('#auth-form');
+const passwordField = document.querySelector('#auth-password');
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
@@ -80,9 +81,10 @@ function openTaskDialog(status = 'todo', task = null) {
 function setAuthMode(mode) {
   authMode = mode;
   const isSignUp = mode === 'sign-up';
+  passwordField.value = '';
   document.querySelector('#auth-title').textContent = isSignUp ? 'Create your account' : 'Your board, wherever you are';
   document.querySelector('#auth-submit').textContent = isSignUp ? 'Create account' : 'Sign in';
-  document.querySelector('#auth-password').autocomplete = isSignUp ? 'new-password' : 'current-password';
+  passwordField.autocomplete = isSignUp ? 'new-password' : 'off';
   document.querySelectorAll('[data-auth-mode]').forEach((button) => {
     const active = button.dataset.authMode === mode;
     button.classList.toggle('is-active', active);
@@ -167,6 +169,7 @@ async function persistTask(task) {
 
 async function applySession(session) {
   const generation = ++sessionGeneration;
+  passwordField.value = '';
   currentUser = session?.user || null;
   document.querySelector('#auth-panel').hidden = Boolean(currentUser);
   document.querySelector('#board-app').hidden = !currentUser;
