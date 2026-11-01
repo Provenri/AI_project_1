@@ -72,10 +72,18 @@ function taskMarkup(task) {
   </article>`;
 }
 
+// Plain tasks keep their order; subtasks follow, ascending by source task then numeric ID.
+function compareCards(a, b) {
+  if (!a.is_subtask || !b.is_subtask) return Number(!!a.is_subtask) - Number(!!b.is_subtask);
+  const collator = { numeric: true, sensitivity: 'base' };
+  return (a.source_task_title || '').localeCompare(b.source_task_title || '', undefined, collator)
+    || (a.subtask_ref || '~').localeCompare(b.subtask_ref || '~', undefined, collator);
+}
+
 function render() {
   const query = searchField.value.trim().toLowerCase();
   for (const status of statuses) {
-    const statusTasks = tasks.filter((task) => task.status === status);
+    const statusTasks = tasks.filter((task) => task.status === status).sort(compareCards);
     const visibleTasks = statusTasks.filter((task) => {
       if (!query) return true;
       return `${task.title} ${task.description || ''} ${task.source_task_title || ''}`.toLowerCase().includes(query);
