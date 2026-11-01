@@ -12,6 +12,9 @@ create table if not exists public.tasks (
 
 alter table public.tasks add column if not exists is_subtask boolean not null default false;
 alter table public.tasks add column if not exists source_task_title text;
+alter table public.tasks add column if not exists subtask_ref text;
+alter table public.tasks drop constraint if exists tasks_subtask_ref_length;
+alter table public.tasks add constraint tasks_subtask_ref_length check (subtask_ref is null or char_length(subtask_ref) between 1 and 12);
 
 drop trigger if exists tasks_enforce_parent_completion on public.tasks;
 drop function if exists public.enforce_parent_task_completion();

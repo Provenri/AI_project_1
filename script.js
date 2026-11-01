@@ -19,6 +19,7 @@ const priorityField = document.querySelector('#task-priority');
 const idField = document.querySelector('#task-id');
 const taskIsSubtaskField = document.querySelector('#task-is-subtask');
 const taskSourceTitleField = document.querySelector('#task-source-title');
+const taskSubtaskRefField = document.querySelector('#task-subtask-ref');
 const searchField = document.querySelector('#search-input');
 const authForm = document.querySelector('#auth-form');
 const passwordField = document.querySelector('#auth-password');
@@ -61,7 +62,7 @@ function taskMarkup(task) {
   const hasSource = task.is_subtask && task.source_task_title;
   const heading = hasSource ? task.source_task_title : task.title;
   const subtaskLine = task.is_subtask
-    ? `<p class="subtask-name"><span class="subtask-kind">SUBTASK</span><span>${escapeHtml(hasSource ? task.title : '')}</span></p>`
+    ? `<p class="subtask-name"><span class="subtask-kind">SUBTASK</span>${task.subtask_ref ? `<span class="subtask-ref">${escapeHtml(task.subtask_ref)}</span>` : ''}<span>${escapeHtml(hasSource ? task.title : '')}</span></p>`
     : '';
   return `<article class="task-card${task.is_subtask ? ' task-card-subtask' : ' task-card-plain'}" role="listitem" draggable="true" data-task-id="${escapeHtml(task.id)}" tabindex="0">
     <div class="task-card-top"><h3 class="task-title">${escapeHtml(heading)}</h3><span class="priority priority-${priority}">${priorityLabels[priority]}</span></div>
@@ -133,7 +134,9 @@ function validateAssistantProposal(value) {
       if (isSubtask && (!sourceTaskTitle || sourceTaskTitle.length > 90)) return null;
       if (!isSubtask && operation.source_task_title != null) return null;
       if (!statuses.includes(operation.status) || !priorityLabels[operation.priority]) return null;
-      proposal.push({ type: 'create', is_subtask: isSubtask, source_task_title: isSubtask ? sourceTaskTitle : null, title, description, status: operation.status, priority: operation.priority });
+      const subtaskRef = typeof operation.subtask_ref === 'string' ? operation.subtask_ref.trim() : '';
+      if (subtaskRef.length > 12 || (!isSubtask && subtaskRef)) return null;
+      proposal.push({ type: 'create', is_subtask: isSubtask, source_task_title: isSubtask ? sourceTaskTitle : null, subtask_ref: subtaskRef || null, title, description, status: operation.status, priority: operation.priority });
       continue;
     }
 
@@ -280,6 +283,7 @@ async function applyProposalOperation(operation, ownerId) {
       priority: operation.priority,
       is_subtask: operation.is_subtask,
       source_task_title: operation.source_task_title,
+      subtask_ref: operation.subtask_ref,
     });
     if (currentUser?.id !== ownerId) throw new Error('Your account changed while saving.');
     tasks.unshift(createdTask);
@@ -367,6 +371,7 @@ function openTaskDialog(status = 'todo', task = null) {
   form.reset();
   taskIsSubtaskField.value = String(task?.is_subtask === true);
   taskSourceTitleField.value = task?.source_task_title || '';
+  taskSubtaskRefField.value = task?.subtask_ref || '';
   idField.value = task?.id || '';
   titleField.value = task?.title || '';
   descriptionField.value = task?.description || '';
@@ -413,7 +418,7 @@ async function loadTasksForUser() {
   const userId = currentUser.id;
   const { data, error } = await supabaseClient
     .from('tasks')
-    .select('id, title, description, status, priority, is_subtask, source_task_title, created_at')
+    .select('id, title, description, status, priority, is_subtask, source_task_title, subtask_ref, created_at')
     .order('created_at', { ascending: true });
   if (error) throw error;
   if (currentUser?.id !== userId) return;
@@ -441,7 +446,7 @@ async function loadTasksForUser() {
   const { data: importedTasks, error: importError } = await supabaseClient
     .from('tasks')
     .insert(legacyTasks)
-    .select('id, title, description, status, priority, is_subtask, source_task_title, created_at');
+    .select('id, title, description, status, priority, is_subtask, source_task_title, subtask_ref, created_at');
   if (importError) throw importError;
   if (currentUser?.id !== userId) return;
   tasks = importedTasks;
@@ -465,10 +470,12 @@ async function persistTask(task) {
     priority: task.priority,
     is_subtask: task.is_subtask === true,
     source_task_title: task.is_subtask === true ? task.source_task_title : null,
+    subtask_ref: task.is_subtask === true ? task.subtask_ref || null : null,
   };
+  const columns = 'id, title, description, status, priority, is_subtask, source_task_title, subtask_ref, created_at';
   const result = task.id
-    ? await supabaseClient.from('tasks').update(fields).eq('id', task.id).select('id, title, description, status, priority, is_subtask, source_task_title, created_at').single()
-    : await supabaseClient.from('tasks').insert({ ...fields, user_id: currentUser.id }).select('id, title, description, status, priority, is_subtask, source_task_title, created_at').single();
+    ? await supabaseClient.from('tasks').update(fields).eq('id', task.id).select(columns).single()
+    : await supabaseClient.from('tasks').insert({ ...fields, user_id: currentUser.id }).select(columns).single();
   if (result.error) throw result.error;
   return result.data;
 }
@@ -576,6 +583,7 @@ form.addEventListener('submit', async (event) => {
       id: idField.value,
       is_subtask: taskIsSubtaskField.value === 'true',
       source_task_title: taskIsSubtaskField.value === 'true' ? taskSourceTitleField.value : null,
+      subtask_ref: taskSubtaskRefField.value || null,
       title,
       description: descriptionField.value.trim(),
       status: statusField.value,

@@ -12,14 +12,14 @@ const actionInstructions = {
   chat: 'Answer the user about their board. Be concise and refer to task titles when useful. If the user clearly asks to change the board, use propose_board_changes to draft create, update, move, or delete operations. When breaking down a task, create standalone subtask records with is_subtask true and source_task_title set to the original task title, and delete the original task in the same proposal. For updates, moves, and deletes, use only task IDs from the board snapshot. Use delete only when explicitly requested or when replacing a task with its requested subtasks. Do not propose changes for questions or advice requests. Never claim a change was applied; the app asks the user to approve proposals.',
   summary: 'Summarize the board in a few concise bullets. Count tasks and subtasks separately by column and call out possible blockers without inventing facts.',
   prioritize: 'Recommend up to three open tasks to work on next. Briefly explain the reasoning. Do not change task priorities or statuses.',
-  breakdown: 'For the selected task, draft 3 to 6 actionable standalone subtasks using create operations with is_subtask true and source_task_title equal to the selected task title. Include one delete operation for the selected original task. Do not claim changes were applied; the user must approve the proposal.',
+  breakdown: 'For the selected task, draft 3 to 6 actionable standalone subtasks using create operations with is_subtask true, source_task_title equal to the selected task title, and a subtask_ref numbered 1.1, 1.2, 1.3 in order. Include one delete operation for the selected original task. Do not claim changes were applied; the user must approve the proposal.',
 } as const;
 
 type AssistantAction = keyof typeof actionInstructions;
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
-type BoardTask = { id: string; is_subtask: boolean; source_task_title: string | null; title: string; description: string; status: string; priority: string };
+type BoardTask = { id: string; is_subtask: boolean; source_task_title: string | null; subtask_ref: string | null; title: string; description: string; status: string; priority: string };
 type TaskProposal =
-  | { type: 'create'; is_subtask: boolean; source_task_title: string | null; title: string; description: string; status: 'todo' | 'progress' | 'done'; priority: 'low' | 'normal' | 'high' }
+  | { type: 'create'; is_subtask: boolean; source_task_title: string | null; subtask_ref: string | null; title: string; description: string; status: 'todo' | 'progress' | 'done'; priority: 'low' | 'normal' | 'high' }
   | { type: 'update'; id: string; title?: string; description?: string; priority?: 'low' | 'normal' | 'high' }
   | { type: 'move'; id: string; status: 'todo' | 'progress' | 'done' }
   | { type: 'delete'; id: string };
@@ -53,10 +53,13 @@ function validateProposal(value: unknown, boardTasks: BoardTask[], action: Assis
       if (!allowedStatuses.includes(String(status)) || !allowedPriorities.includes(String(priority))) return null;
       if (isSubtask && (!sourceTaskTitle || sourceTaskTitle.length > 90)) return null;
       if (!isSubtask && item.source_task_title != null) return null;
+      const subtaskRef = typeof item.subtask_ref === 'string' ? item.subtask_ref.trim() : '';
+      if (subtaskRef.length > 12 || (!isSubtask && subtaskRef)) return null;
       proposal.push({
         type: 'create',
         is_subtask: isSubtask,
         source_task_title: isSubtask ? sourceTaskTitle : null,
+        subtask_ref: subtaskRef || null,
         title,
         description,
         status: status as 'todo' | 'progress' | 'done',
@@ -177,7 +180,7 @@ Deno.serve(async (request) => {
 
   const { data: tasks, error: tasksError } = await supabase
     .from('tasks')
-    .select('id, is_subtask, source_task_title, title, description, status, priority')
+    .select('id, is_subtask, source_task_title, subtask_ref, title, description, status, priority')
     .order('created_at', { ascending: true })
     .limit(80);
   if (tasksError) return jsonResponse({ error: 'Could not load your board tasks.' }, 500);
@@ -255,6 +258,7 @@ Deno.serve(async (request) => {
                       id: { type: 'string' },
                       is_subtask: { type: 'boolean', description: 'True for a standalone subtask replacing an original task.' },
                       source_task_title: { type: 'string', description: 'The original task title for a standalone subtask.' },
+                      subtask_ref: { type: 'string', description: 'Short ID for a subtask in the breakdown, numbered like 1.1, 1.2, 1.3 (max 12 characters).' },
                       title: { type: 'string' },
                       description: { type: 'string' },
                       status: { type: 'string', enum: ['todo', 'progress', 'done'] },

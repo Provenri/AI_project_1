@@ -99,6 +99,7 @@ kbd { padding: 2px 5px; border: 1px solid #e6e9e7; border-radius: 3px; color: #9
 .task-title { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
 .task-description { margin: 7px 0 0; color: #78827e; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 .subtask-name { display: flex; align-items: baseline; gap: 7px; margin: 6px 0 0; padding-left: 9px; border-left: 2px solid #3f8f5f; color: #2f5f43; font-size: 11px; font-weight: 500; line-height: 1.45; overflow-wrap: anywhere; }
+.subtask-ref { flex: 0 0 auto; padding: 1px 5px; border: 1px solid #3f8f5f; border-radius: 3px; color: #2f5f43; font-size: 9px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .subtask-kind { flex: 0 0 auto; padding: 1px 5px; border-radius: 3px; background: #3f8f5f; color: #fff; font-size: 8px; font-weight: 800; letter-spacing: .04em; }
 .priority { flex: 0 0 auto; padding: 4px 6px; border-radius: 3px; color: #66716b; background: #eef1ef; font-size: 9px; font-weight: 700; }
 .priority-high { color: #b14c37; background: #fbece7; }
