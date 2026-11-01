@@ -32,7 +32,7 @@ The assistant uses OpenRouter's `openrouter/free` model router through a Supabas
 
 4. Commit and push the website changes to `main` so GitHub Pages deploys the assistant interface.
 
-The function verifies the signed-in Supabase user and reads tasks under the existing row-level security policies. OpenRouter and its selected model provider receive the task titles, notes, and your prompt to generate suggestions. Suggestions do not change the board automatically. Review OpenRouter's privacy settings and usage limits before sharing the site.
+The function verifies the signed-in Supabase user and reads tasks under the existing row-level security policies. OpenRouter and its selected model provider receive the task titles, notes, and your prompt. In chat, the assistant can propose task creation, edits, moves, and deletions. The function validates proposals but never writes tasks; review the preview and click **Apply changes** to perform the operations with your signed-in account. Discarding a proposal leaves the board unchanged. Review OpenRouter's privacy settings and usage limits before sharing the site.
 
 ## Run locally
 

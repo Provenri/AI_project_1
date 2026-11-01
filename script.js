@@ -28,6 +28,7 @@ const assistantTaskSelect = document.querySelector('#assistant-task-select');
 
 let assistantMessages = [];
 let assistantRequestInFlight = false;
+let pendingProposal = null;
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
@@ -100,7 +101,107 @@ function renderAssistantTranscript() {
     item.textContent = message.content;
     assistantTranscript.append(item);
   }
+  if (pendingProposal) renderProposalCard();
   assistantTranscript.scrollTop = assistantTranscript.scrollHeight;
+}
+
+function validateAssistantProposal(value) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 6) return null;
+  const taskIds = new Set(tasks.map((task) => task.id));
+  const changedTaskIds = new Set();
+  const proposal = [];
+
+  for (const operation of value) {
+    if (!operation || typeof operation !== 'object') return null;
+    if (operation.type === 'create') {
+      const title = typeof operation.title === 'string' ? operation.title.trim() : '';
+      const description = typeof operation.description === 'string' ? operation.description.trim() : '';
+      if (!title || title.length > 90 || description.length > 240) return null;
+      if (!statuses.includes(operation.status) || !priorityLabels[operation.priority]) return null;
+      proposal.push({ type: 'create', title, description, status: operation.status, priority: operation.priority });
+      continue;
+    }
+
+    if (!['update', 'move', 'delete'].includes(operation.type) || typeof operation.id !== 'string') return null;
+    if (!taskIds.has(operation.id) || changedTaskIds.has(operation.id)) return null;
+    changedTaskIds.add(operation.id);
+
+    if (operation.type === 'delete') {
+      proposal.push({ type: 'delete', id: operation.id });
+    } else if (operation.type === 'move') {
+      if (!statuses.includes(operation.status)) return null;
+      proposal.push({ type: 'move', id: operation.id, status: operation.status });
+    } else {
+      const update = { type: 'update', id: operation.id };
+      if (operation.title !== undefined) {
+        if (typeof operation.title !== 'string' || !operation.title.trim() || operation.title.trim().length > 90) return null;
+        update.title = operation.title.trim();
+      }
+      if (operation.description !== undefined) {
+        if (typeof operation.description !== 'string' || operation.description.length > 240) return null;
+        update.description = operation.description.trim();
+      }
+      if (operation.priority !== undefined) {
+        if (typeof operation.priority !== 'string' || !priorityLabels[operation.priority]) return null;
+        update.priority = operation.priority;
+      }
+      if (update.title === undefined && update.description === undefined && update.priority === undefined) return null;
+      proposal.push(update);
+    }
+  }
+  return proposal;
+}
+
+function describeProposal(operation) {
+  if (operation.type === 'create') {
+    return `Add "${operation.title}" to ${operation.status === 'todo' ? 'To do' : operation.status === 'progress' ? 'In progress' : 'Done'} (${operation.priority} priority)`;
+  }
+  const task = tasks.find((item) => item.id === operation.id);
+  const title = task?.title || 'Unknown task';
+  if (operation.type === 'delete') return `Delete "${title}"`;
+  if (operation.type === 'move') {
+    const destination = operation.status === 'todo' ? 'To do' : operation.status === 'progress' ? 'In progress' : 'Done';
+    return `Move "${title}" to ${destination}`;
+  }
+  const changes = [];
+  if (operation.title !== undefined) changes.push(`rename to "${operation.title}"`);
+  if (operation.description !== undefined) changes.push('change its notes');
+  if (operation.priority !== undefined) changes.push(`set ${operation.priority} priority`);
+  return `Edit "${title}": ${changes.join(', ')}`;
+}
+
+function renderProposalCard() {
+  const card = document.createElement('section');
+  card.className = 'assistant-proposal';
+  card.setAttribute('aria-label', 'Proposed board changes');
+
+  const heading = document.createElement('h3');
+  heading.textContent = `Review ${pendingProposal.length} proposed change${pendingProposal.length === 1 ? '' : 's'}`;
+  card.append(heading);
+
+  const list = document.createElement('ul');
+  for (const operation of pendingProposal) {
+    const item = document.createElement('li');
+    item.textContent = describeProposal(operation);
+    list.append(item);
+  }
+  card.append(list);
+
+  const actions = document.createElement('div');
+  actions.className = 'assistant-proposal-actions';
+  const discardButton = document.createElement('button');
+  discardButton.className = 'button button-quiet';
+  discardButton.type = 'button';
+  discardButton.dataset.proposalAction = 'discard';
+  discardButton.textContent = 'Discard';
+  const applyButton = document.createElement('button');
+  applyButton.className = 'button button-primary';
+  applyButton.type = 'button';
+  applyButton.dataset.proposalAction = 'apply';
+  applyButton.textContent = 'Apply changes';
+  actions.append(discardButton, applyButton);
+  card.append(actions);
+  assistantTranscript.append(card);
 }
 
 function setAssistantStatus(message, isError = false) {
@@ -111,13 +212,20 @@ function setAssistantStatus(message, isError = false) {
 
 function setAssistantBusy(isBusy) {
   assistantRequestInFlight = isBusy;
-  document.querySelector('#assistant-send-button').disabled = isBusy;
-  document.querySelectorAll('.assistant-shortcut').forEach((button) => { button.disabled = isBusy; });
-  assistantTaskSelect.disabled = isBusy;
+  const interactionLocked = isBusy || Boolean(pendingProposal);
+  document.querySelector('#assistant-send-button').disabled = interactionLocked;
+  assistantInput.disabled = interactionLocked;
+  document.querySelectorAll('.assistant-shortcut').forEach((button) => { button.disabled = interactionLocked; });
+  assistantTaskSelect.disabled = interactionLocked;
+  assistantTranscript.querySelectorAll('[data-proposal-action]').forEach((button) => { button.disabled = isBusy; });
 }
 
 async function askAssistant(action, prompt, taskId = '') {
   if (!currentUser || assistantRequestInFlight) return;
+  if (pendingProposal) {
+    setAssistantStatus('Review or discard the pending changes first.');
+    return;
+  }
   assistantMessages.push({ role: 'user', content: prompt });
   assistantMessages = assistantMessages.slice(-10);
   renderAssistantTranscript();
@@ -131,6 +239,10 @@ async function askAssistant(action, prompt, taskId = '') {
     });
     if (error) throw error;
     if (typeof data?.reply !== 'string' || !data.reply.trim()) throw new Error('The assistant returned an empty reply.');
+    if (data.proposal !== undefined) {
+      pendingProposal = validateAssistantProposal(data.proposal);
+      if (!pendingProposal) throw new Error('The assistant returned an invalid change proposal.');
+    }
     assistantMessages.push({ role: 'assistant', content: data.reply.trim() });
     assistantMessages = assistantMessages.slice(-10);
     renderAssistantTranscript();
@@ -140,6 +252,97 @@ async function askAssistant(action, prompt, taskId = '') {
   } finally {
     setAssistantBusy(false);
   }
+}
+
+async function applyProposalOperation(operation, ownerId) {
+  if (operation.type === 'create') {
+    const createdTask = await persistTask({
+      id: '',
+      title: operation.title,
+      description: operation.description,
+      status: operation.status,
+      priority: operation.priority,
+    });
+    if (currentUser?.id !== ownerId) throw new Error('Your account changed while saving.');
+    tasks.unshift(createdTask);
+    return;
+  }
+
+  const task = tasks.find((item) => item.id === operation.id);
+  if (!task) throw new Error('A proposed task is no longer on the board.');
+  if (operation.type === 'delete') {
+    const { error } = await supabaseClient.from('tasks').delete().eq('id', task.id);
+    if (error) throw error;
+    if (currentUser?.id !== ownerId) throw new Error('Your account changed while saving.');
+    tasks = tasks.filter((item) => item.id !== task.id);
+    return;
+  }
+
+  const updatedTask = await persistTask(operation.type === 'move'
+    ? { ...task, status: operation.status }
+    : { ...task, ...operation });
+  if (currentUser?.id !== ownerId) throw new Error('Your account changed while saving.');
+  tasks = tasks.map((item) => item.id === updatedTask.id ? updatedTask : item);
+}
+
+async function applyAssistantProposal() {
+  if (!pendingProposal || assistantRequestInFlight) return;
+  const ownerId = currentUser?.id;
+  if (!ownerId) return;
+  const operations = [...pendingProposal];
+  let appliedCount = 0;
+  setAssistantBusy(true);
+  setAssistantStatus('Applying approved changes...');
+
+  for (let index = 0; index < operations.length; index += 1) {
+    if (currentUser?.id !== ownerId) {
+      pendingProposal = null;
+      assistantMessages = [];
+      renderAssistantTranscript();
+      setAssistantStatus('Account changed. Remaining proposed changes were discarded.', true);
+      setAssistantBusy(false);
+      return;
+    }
+    try {
+      await applyProposalOperation(operations[index], ownerId);
+      appliedCount += 1;
+      pendingProposal = operations.slice(index + 1);
+      if (!pendingProposal.length) pendingProposal = null;
+      render();
+      renderAssistantTranscript();
+      setAssistantBusy(true);
+    } catch (error) {
+      if (currentUser?.id !== ownerId) {
+        pendingProposal = null;
+        assistantMessages = [];
+        renderAssistantTranscript();
+        setAssistantStatus('Account changed. Remaining proposed changes were discarded.', true);
+        setAssistantBusy(false);
+        return;
+      }
+      pendingProposal = operations.slice(index);
+      renderAssistantTranscript();
+      setAssistantStatus(`Applied ${appliedCount} of ${operations.length}. The remaining changes are still available to review. ${error.message}`, true);
+      setAssistantBusy(false);
+      return;
+    }
+  }
+
+  assistantMessages.push({ role: 'assistant', content: `Applied ${appliedCount} change${appliedCount === 1 ? '' : 's'} to your board.` });
+  assistantMessages = assistantMessages.slice(-10);
+  render();
+  renderAssistantTranscript();
+  setAssistantStatus('Changes applied.');
+  setCloudStatus('Synced to Supabase');
+  setAssistantBusy(false);
+}
+
+function discardAssistantProposal() {
+  if (!pendingProposal || assistantRequestInFlight) return;
+  pendingProposal = null;
+  renderAssistantTranscript();
+  setAssistantStatus('Proposed changes discarded.');
+  setAssistantBusy(false);
 }
 
 function openTaskDialog(status = 'todo', task = null) {
@@ -246,8 +449,14 @@ async function persistTask(task) {
 
 async function applySession(session) {
   const generation = ++sessionGeneration;
+  const nextUser = session?.user || null;
+  if (currentUser?.id !== nextUser?.id) {
+    assistantMessages = [];
+    pendingProposal = null;
+    renderAssistantTranscript();
+  }
   passwordField.value = '';
-  currentUser = session?.user || null;
+  currentUser = nextUser;
   document.querySelector('#auth-panel').hidden = Boolean(currentUser);
   document.querySelector('#board-app').hidden = !currentUser;
   document.querySelector('#sign-out-button').hidden = !currentUser;
@@ -451,6 +660,13 @@ document.querySelector('#open-assistant-button').addEventListener('click', () =>
 document.querySelector('#close-assistant-button').addEventListener('click', () => assistantDialog.close());
 assistantDialog.addEventListener('click', (event) => {
   if (event.target === assistantDialog) assistantDialog.close();
+});
+
+assistantTranscript.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-proposal-action]');
+  if (!button) return;
+  if (button.dataset.proposalAction === 'apply') void applyAssistantProposal();
+  if (button.dataset.proposalAction === 'discard') discardAssistantProposal();
 });
 
 document.querySelectorAll('[data-assistant-action]').forEach((button) => {
