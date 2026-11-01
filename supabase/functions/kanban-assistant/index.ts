@@ -149,6 +149,6 @@ Deno.serve(async (request) => {
     : Array.isArray(content)
       ? content.filter((block: { type?: string }) => block.type === 'text').map((block: { text?: string }) => block.text || '').join('\n').trim()
       : '';
-  if (!reply) return jsonResponse({ error: 'Claude returned no text. Please try again.' }, 502);
+  if (!reply) return jsonResponse({ error: 'The model returned no text. Please try again.' }, 502);
   return jsonResponse({ reply });
 });

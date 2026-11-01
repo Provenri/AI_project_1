@@ -121,7 +121,7 @@ async function askAssistant(action, prompt, taskId = '') {
   assistantMessages.push({ role: 'user', content: prompt });
   assistantMessages = assistantMessages.slice(-10);
   renderAssistantTranscript();
-  setAssistantStatus('Claude is thinking...');
+  setAssistantStatus('Assistant is thinking...');
   setAssistantBusy(true);
 
   try {
