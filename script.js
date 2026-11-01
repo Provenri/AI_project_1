@@ -58,12 +58,14 @@ function setBoardMessage(message, isError = false) {
 function taskMarkup(task) {
   const priority = priorityLabels[task.priority] ? task.priority : 'normal';
   const description = task.description ? `<p class="task-description">${escapeHtml(task.description)}</p>` : '';
-  const subtaskOrigin = task.is_subtask && task.source_task_title
-    ? `<p class="subtask-origin-label"><span class="subtask-kind">SUBTASK</span><span>From ${escapeHtml(task.source_task_title)}</span></p>`
+  const hasSource = task.is_subtask && task.source_task_title;
+  const heading = hasSource ? task.source_task_title : task.title;
+  const subtaskLine = task.is_subtask
+    ? `<p class="subtask-name"><span class="subtask-kind">SUBTASK</span><span>${escapeHtml(hasSource ? task.title : '')}</span></p>`
     : '';
-  return `<article class="task-card${task.is_subtask ? ' task-card-subtask' : ''}" role="listitem" draggable="true" data-task-id="${escapeHtml(task.id)}" tabindex="0">
-    <div class="task-card-top"><h3 class="task-title">${escapeHtml(task.title)}</h3><span class="priority priority-${priority}">${priorityLabels[priority]}</span></div>
-    ${subtaskOrigin}
+  return `<article class="task-card${task.is_subtask ? ' task-card-subtask' : ' task-card-plain'}" role="listitem" draggable="true" data-task-id="${escapeHtml(task.id)}" tabindex="0">
+    <div class="task-card-top"><h3 class="task-title">${escapeHtml(heading)}</h3><span class="priority priority-${priority}">${priorityLabels[priority]}</span></div>
+    ${subtaskLine}
     ${description}
     <div class="task-footer"><span class="task-origin"><span>Y</span> You</span><div class="task-actions"><button class="task-action edit" type="button" data-action="edit" aria-label="Edit ${escapeHtml(task.title)}">Edit</button><button class="task-action delete" type="button" data-action="delete" aria-label="Delete ${escapeHtml(task.title)}">Delete</button></div></div>
   </article>`;
