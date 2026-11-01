@@ -5,92 +5,55 @@ create table if not exists public.tasks (
   description text not null default '' check (char_length(description) <= 240),
   status text not null check (status in ('todo', 'progress', 'done')),
   priority text not null default 'normal' check (priority in ('low', 'normal', 'high')),
-  parent_id uuid,
-  constraint tasks_subtask_status check (parent_id is null or status in ('todo', 'done')),
+  is_subtask boolean not null default false,
+  source_task_title text,
   created_at timestamptz not null default now()
 );
 
-alter table public.tasks add column if not exists parent_id uuid;
-create unique index if not exists tasks_id_user_id_unique on public.tasks (id, user_id);
-create index if not exists tasks_parent_id_idx on public.tasks (parent_id);
+alter table public.tasks add column if not exists is_subtask boolean not null default false;
+alter table public.tasks add column if not exists source_task_title text;
+
+drop trigger if exists tasks_enforce_parent_completion on public.tasks;
+drop function if exists public.enforce_parent_task_completion();
+alter table public.tasks drop constraint if exists tasks_parent_owner_fkey;
+alter table public.tasks drop constraint if exists tasks_parent_not_self;
+alter table public.tasks drop constraint if exists tasks_subtask_status;
 
 do $$
 begin
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'tasks_parent_owner_fkey'
-      and conrelid = 'public.tasks'::regclass
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'tasks'
+      and column_name = 'parent_id'
   ) then
-    alter table public.tasks
-      add constraint tasks_parent_owner_fkey
-      foreign key (parent_id, user_id)
-      references public.tasks (id, user_id)
-      on delete cascade;
-  end if;
+    execute $migration$
+      update public.tasks as child
+      set is_subtask = true,
+          source_task_title = parent.title
+      from public.tasks as parent
+      where child.parent_id = parent.id
+        and child.is_subtask = false
+    $migration$;
 
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'tasks_parent_not_self'
-      and conrelid = 'public.tasks'::regclass
-  ) then
-    alter table public.tasks
-      add constraint tasks_parent_not_self
-      check (parent_id is null or parent_id <> id);
-  end if;
-
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'tasks_subtask_status'
-      and conrelid = 'public.tasks'::regclass
-  ) then
-    alter table public.tasks
-      add constraint tasks_subtask_status
-      check (parent_id is null or status in ('todo', 'done'));
+    alter table public.tasks drop column parent_id cascade;
   end if;
 end
 $$;
 
+drop index if exists public.tasks_parent_id_idx;
+drop index if exists public.tasks_id_user_id_unique;
+alter table public.tasks drop constraint if exists tasks_task_kind_metadata;
+alter table public.tasks
+  add constraint tasks_task_kind_metadata
+  check (
+    (is_subtask = false and source_task_title is null)
+    or (is_subtask = true and char_length(btrim(source_task_title)) between 1 and 90)
+  );
+
 alter table public.tasks enable row level security;
 grant select, insert, update, delete on table public.tasks to authenticated;
-
-create or replace function public.enforce_parent_task_completion()
-returns trigger
-language plpgsql
-set search_path = public
-as $$
-declare
-  parent_status text;
-begin
-  if new.parent_id is null then
-    if new.status = 'done' and exists (
-      select 1
-      from public.tasks as subtask
-      where subtask.parent_id = new.id
-        and subtask.status <> 'done'
-    ) then
-      raise exception 'Complete all subtasks before moving the parent task to Done.'
-        using errcode = '23514';
-    end if;
-  else
-    select parent.status
-      into parent_status
-      from public.tasks as parent
-      where parent.id = new.parent_id
-        and parent.user_id = new.user_id;
-
-    if parent_status = 'done' and new.status <> 'done' then
-      raise exception 'Move the parent task out of Done before reopening or adding a subtask.'
-        using errcode = '23514';
-    end if;
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists tasks_enforce_parent_completion on public.tasks;
-create trigger tasks_enforce_parent_completion
-  before insert or update on public.tasks
-  for each row execute function public.enforce_parent_task_completion();
 
 drop policy if exists "Users can read their own tasks" on public.tasks;
 create policy "Users can read their own tasks"

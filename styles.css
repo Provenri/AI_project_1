@@ -91,22 +91,14 @@ kbd { padding: 2px 5px; border: 1px solid #e6e9e7; border-radius: 3px; color: #9
 .text-button:hover { color: var(--green); }
 .task-list { min-height: 30px; display: grid; gap: 9px; }
 .task-card { padding: 13px 13px 11px; border: 1px solid #e1e6e2; border-radius: 5px; background: var(--paper); box-shadow: 0 2px 5px rgba(32, 43, 40, .025); cursor: grab; animation: arrive .25s ease both; }
+.task-card-subtask { border-color: #d7e4dc; border-left: 3px solid #6f9d7e; background: #f9fbf9; }
 .task-card:active { cursor: grabbing; }
 .task-card.is-dragging { opacity: .4; }
 .task-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .task-title { margin: 0; font-size: 12px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
 .task-description { margin: 7px 0 0; color: #78827e; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
-.subtask-group { margin-top: 11px; padding-top: 10px; border-top: 1px solid #edf0ed; }
-.subtask-summary { display: flex; justify-content: space-between; color: #79847e; font-size: 9px; font-weight: 600; }
-.subtask-progress { height: 3px; margin: 6px 0 5px; overflow: hidden; border-radius: 2px; background: #e8ede9; }
-.subtask-progress span { height: 100%; display: block; border-radius: inherit; background: #65a27d; transition: width .2s ease; }
-.subtask-list { display: grid; gap: 1px; }
-.subtask-row { min-width: 0; display: grid; grid-template-columns: 15px minmax(0, 1fr) auto; align-items: start; gap: 7px; padding: 4px 0; }
-.subtask-checkbox { width: 13px; height: 13px; margin: 1px 0 0; accent-color: var(--green); cursor: pointer; }
-.subtask-row label { min-width: 0; margin: 0; color: #47544c; cursor: pointer; font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
-.subtask-row.is-complete label { color: #929b96; text-decoration: line-through; text-decoration-color: #9eaaa2; }
-.subtask-edit { padding: 0 3px; border: 0; color: #7d8881; background: transparent; cursor: pointer; font-size: 9px; opacity: .5; }
-.subtask-edit:hover, .subtask-edit:focus-visible { color: var(--green-dark); opacity: 1; }
+.subtask-origin-label { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; margin: 7px 0 0; color: #62786a; font-size: 9px; line-height: 1.45; overflow-wrap: anywhere; }
+.subtask-kind { flex: 0 0 auto; color: #427156; font-size: 8px; font-weight: 800; }
 .priority { flex: 0 0 auto; padding: 4px 6px; border-radius: 3px; color: #66716b; background: #eef1ef; font-size: 9px; font-weight: 700; }
 .priority-high { color: #b14c37; background: #fbece7; }
 .priority-low { color: #527a99; background: #eaf1f6; }
@@ -219,7 +211,6 @@ textarea.form-input { resize: vertical; }
   .assistant-panel { padding: 18px 16px 14px; }
   .assistant-transcript { max-height: 42vh; }
   .assistant-shortcuts > .assistant-shortcut { flex: 1; }
-  .subtask-row { gap: 6px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

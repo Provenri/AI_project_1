@@ -56,6 +56,8 @@
         <section class="board-heading" aria-labelledby="page-title">
           <div>
             <p class="eyebrow">PERSONAL WORKSPACE <span aria-hidden="true">/</span> BOARD</p>
+          <input id="task-is-subtask" type="hidden" value="false" />
+          <input id="task-source-title" type="hidden" />
             <h1 id="page-title">My Kanban</h1>
             <p class="board-subtitle">A clear view of what&rsquo;s moving and what&rsquo;s next.</p>
           </div>
@@ -111,7 +113,8 @@
           <button class="close-button" id="close-dialog-button" type="button" aria-label="Close dialog">&times;</button>
         </div>
         <input id="task-id" type="hidden" />
-        <input id="task-parent-id" type="hidden" />
+        <input id="task-is-subtask" type="hidden" value="false" />
+        <input id="task-source-title" type="hidden" />
         <label class="field-label" id="task-title-label" for="task-title">Task name</label>
         <input class="form-input" id="task-title" name="title" maxlength="90" required placeholder="What needs doing?" />
         <label class="field-label" for="task-description">Notes <span>Optional</span></label>

@@ -1,11 +1,11 @@
 # Fieldnotes Kanban
 
-A small Kanban board with email accounts, per-user Supabase sync, and nested task checklists. Parent tasks appear in Kanban columns; subtasks are checkable items inside each parent card, with a completion count and progress bar. A parent can move to Done only when all its subtasks are done.
+A small Kanban board with email accounts and per-user Supabase sync. Tasks and subtasks are standalone cards that can move freely between Kanban columns. Subtasks show the original task title and have a distinct visual treatment.
 
 ## Set up Supabase
 
 1. Create a Supabase project.
-2. In the Supabase SQL Editor, run the contents of `supabase-schema.sql`. If the project already has a `tasks` table, rerun the script to add the `parent_id` relationship and completion trigger; the migration is idempotent.
+2. In the Supabase SQL Editor, run the contents of `supabase-schema.sql`. If the project already has the older parent/child schema, rerun the script: existing subtasks become standalone cards with their original task title preserved, and the parent relationship is removed. Existing tasks are retained.
 3. In Project Settings, copy the project URL and the publishable key (or legacy `anon` key) into `supabase-config.js`.
 4. In Authentication URL Configuration, set the Site URL to your GitHub Pages address and add that same address to the allowed redirect URLs.
 5. In Authentication settings, choose whether new accounts require email confirmation.
@@ -32,7 +32,7 @@ The assistant uses OpenRouter's `openrouter/free` model router through a Supabas
 
 4. Commit and push the website changes to `main` so GitHub Pages deploys the assistant interface.
 
-The function verifies the signed-in Supabase user and reads tasks under the existing row-level security policies. OpenRouter and its selected model provider receive the task titles, notes, and your prompt. In chat, the assistant can propose task creation, edits, moves, and deletions. The function validates proposals but never writes tasks; review the preview and click **Apply changes** to perform the operations with your signed-in account. Discarding a proposal leaves the board unchanged. Review OpenRouter's privacy settings and usage limits before sharing the site.
+The function verifies the signed-in Supabase user and reads tasks under the existing row-level security policies. OpenRouter and its selected model provider receive the task titles, notes, and your prompt. In chat, the assistant can propose task creation, edits, moves, and deletions. Breaking down a task proposes standalone subtasks and removal of the original task. The function validates proposals but never writes tasks; review the preview and click **Apply changes** to perform the operations with your signed-in account. Discarding a proposal leaves the board unchanged. Review OpenRouter's privacy settings and usage limits before sharing the site.
 
 ## Run locally
 

@@ -9,17 +9,17 @@ const corsHeaders = {
 };
 
 const actionInstructions = {
-  chat: 'Answer the user about their board. Be concise and refer to task titles when useful. If the user clearly asks to change the board, use propose_board_changes to draft create, update, move, or delete operations. For a subtask, use a create operation with parentId set to an existing top-level task ID. Never create children of subtasks. Subtasks use only todo or done status. For updates, moves, and deletes, use only task IDs from the board snapshot. Use delete only when explicitly requested. Do not propose changes for questions or advice requests. Never claim a change was applied; the app asks the user to approve proposals.',
-  summary: 'Summarize the board in a few concise bullets. Include parent-task and subtask counts by column and call out possible blockers without inventing facts.',
+  chat: 'Answer the user about their board. Be concise and refer to task titles when useful. If the user clearly asks to change the board, use propose_board_changes to draft create, update, move, or delete operations. When breaking down a task, create standalone subtask records with is_subtask true and source_task_title set to the original task title, and delete the original task in the same proposal. For updates, moves, and deletes, use only task IDs from the board snapshot. Use delete only when explicitly requested or when replacing a task with its requested subtasks. Do not propose changes for questions or advice requests. Never claim a change was applied; the app asks the user to approve proposals.',
+  summary: 'Summarize the board in a few concise bullets. Count tasks and subtasks separately by column and call out possible blockers without inventing facts.',
   prioritize: 'Recommend up to three open tasks to work on next. Briefly explain the reasoning. Do not change task priorities or statuses.',
-  breakdown: 'For the selected top-level task, draft 3 to 6 actionable subtasks by calling propose_board_changes with create operations whose parentId is the selected task ID. Do not claim they were created; the user must approve them.',
+  breakdown: 'For the selected task, draft 3 to 6 actionable standalone subtasks using create operations with is_subtask true and source_task_title equal to the selected task title. Include one delete operation for the selected original task. Do not claim changes were applied; the user must approve the proposal.',
 } as const;
 
 type AssistantAction = keyof typeof actionInstructions;
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
-type BoardTask = { id: string; parent_id: string | null; title: string; description: string; status: string; priority: string };
+type BoardTask = { id: string; is_subtask: boolean; source_task_title: string | null; title: string; description: string; status: string; priority: string };
 type TaskProposal =
-  | { type: 'create'; parent_id: string | null; title: string; description: string; status: 'todo' | 'progress' | 'done'; priority: 'low' | 'normal' | 'high' }
+  | { type: 'create'; is_subtask: boolean; source_task_title: string | null; title: string; description: string; status: 'todo' | 'progress' | 'done'; priority: 'low' | 'normal' | 'high' }
   | { type: 'update'; id: string; title?: string; description?: string; priority?: 'low' | 'normal' | 'high' }
   | { type: 'move'; id: string; status: 'todo' | 'progress' | 'done' }
   | { type: 'delete'; id: string };
@@ -33,10 +33,8 @@ function validateProposal(value: unknown, boardTasks: BoardTask[], action: Assis
   if (!Array.isArray(operations) || operations.length < 1 || operations.length > 6) return null;
 
   const taskIds = new Set(boardTasks.map((task) => task.id));
-  const rootTaskIds = new Set(boardTasks.filter((task) => !task.parent_id).map((task) => task.id));
   const changedTaskIds = new Set<string>();
   const deletedTaskIds = new Set<string>();
-  const childParentIds: string[] = [];
   const proposal: TaskProposal[] = [];
 
   for (const operation of operations) {
@@ -47,19 +45,18 @@ function validateProposal(value: unknown, boardTasks: BoardTask[], action: Assis
       if (typeof item.title !== 'string') return null;
       const title = item.title.trim();
       const description = typeof item.description === 'string' ? item.description.trim() : '';
-      const parentId = item.parentId === undefined ? null : item.parentId;
+      const isSubtask = item.is_subtask === true;
+      const sourceTaskTitle = typeof item.source_task_title === 'string' ? item.source_task_title.trim() : '';
       const status = item.status ?? 'todo';
       const priority = item.priority ?? 'normal';
       if (!title || title.length > 90 || description.length > 240) return null;
       if (!allowedStatuses.includes(String(status)) || !allowedPriorities.includes(String(priority))) return null;
-      if (parentId !== null && (typeof parentId !== 'string' || !rootTaskIds.has(parentId))) return null;
-      if (parentId !== null && boardTasks.find((task) => task.id === parentId)?.status === 'done') return null;
-      if (parentId !== null && !['todo', 'done'].includes(String(status))) return null;
-      if (action === 'breakdown' && (parentId !== taskId || parentId === null)) return null;
-      if (parentId !== null) childParentIds.push(parentId);
+      if (isSubtask && (!sourceTaskTitle || sourceTaskTitle.length > 90)) return null;
+      if (!isSubtask && item.source_task_title != null) return null;
       proposal.push({
         type: 'create',
-        parent_id: parentId as string | null,
+        is_subtask: isSubtask,
+        source_task_title: isSubtask ? sourceTaskTitle : null,
         title,
         description,
         status: status as 'todo' | 'progress' | 'done',
@@ -68,7 +65,8 @@ function validateProposal(value: unknown, boardTasks: BoardTask[], action: Assis
       continue;
     }
 
-    if (action === 'breakdown' || (item.type !== 'update' && item.type !== 'move' && item.type !== 'delete')) return null;
+    if (!['update', 'move', 'delete'].includes(String(item.type))) return null;
+    if (action === 'breakdown' && item.type !== 'delete') return null;
     if (typeof item.id !== 'string' || !taskIds.has(item.id) || changedTaskIds.has(item.id)) return null;
     changedTaskIds.add(item.id);
 
@@ -80,9 +78,6 @@ function validateProposal(value: unknown, boardTasks: BoardTask[], action: Assis
 
     if (item.type === 'move') {
       if (typeof item.status !== 'string' || !allowedStatuses.includes(item.status)) return null;
-      const task = boardTasks.find((boardTask) => boardTask.id === item.id);
-      if (task?.parent_id && !['todo', 'done'].includes(item.status)) return null;
-      if (task && !task.parent_id && item.status === 'done' && boardTasks.some((child) => child.parent_id === task.id && child.status !== 'done')) return null;
       proposal.push({ type: 'move', id: item.id, status: item.status as 'todo' | 'progress' | 'done' });
       continue;
     }
@@ -104,7 +99,18 @@ function validateProposal(value: unknown, boardTasks: BoardTask[], action: Assis
     proposal.push(update);
   }
 
-  if (childParentIds.some((parentId) => deletedTaskIds.has(parentId))) return null;
+  const subtaskOperations = proposal.filter((operation): operation is Extract<TaskProposal, { type: 'create' }> => operation.type === 'create' && operation.is_subtask);
+  for (const subtask of subtaskOperations) {
+    const sourceTask = action === 'breakdown'
+      ? boardTasks.find((task) => task.id === taskId && !task.is_subtask)
+      : boardTasks.find((task) => !task.is_subtask && task.title === subtask.source_task_title);
+    if (!sourceTask || sourceTask.title !== subtask.source_task_title || !deletedTaskIds.has(sourceTask.id)) return null;
+  }
+  if (action === 'breakdown') {
+    const selectedTask = boardTasks.find((task) => task.id === taskId && !task.is_subtask);
+    const proposedSubtasks = subtaskOperations.filter((operation) => operation.source_task_title === selectedTask?.title);
+    if (!selectedTask || proposedSubtasks.length < 1 || proposal.length !== proposedSubtasks.length + 1 || !deletedTaskIds.has(selectedTask.id)) return null;
+  }
   return proposal;
 }
 
@@ -171,7 +177,7 @@ Deno.serve(async (request) => {
 
   const { data: tasks, error: tasksError } = await supabase
     .from('tasks')
-    .select('id, parent_id, title, description, status, priority')
+    .select('id, is_subtask, source_task_title, title, description, status, priority')
     .order('created_at', { ascending: true })
     .limit(80);
   if (tasksError) return jsonResponse({ error: 'Could not load your board tasks.' }, 500);
@@ -179,13 +185,14 @@ Deno.serve(async (request) => {
 
   let selectedTask: (typeof boardTasks)[number] | null = null;
   if (action === 'breakdown') {
-    selectedTask = boardTasks.find((task) => task.id === body.taskId && !task.parent_id) || null;
-    if (!selectedTask) return jsonResponse({ error: 'Choose a top-level task from your board.' }, 404);
+    selectedTask = boardTasks.find((task) => task.id === body.taskId && !task.is_subtask) || null;
+    if (!selectedTask) return jsonResponse({ error: 'Choose a task from your board.' }, 404);
   }
 
   const boardSnapshot = boardTasks.map((task) => ({
     id: task.id,
-    parentId: task.parent_id,
+    isSubtask: task.is_subtask,
+    sourceTaskTitle: task.source_task_title,
     title: task.title.slice(0, 90),
     description: task.description.slice(0, 240),
     status: task.status,
@@ -246,7 +253,8 @@ Deno.serve(async (request) => {
                     properties: {
                       type: { type: 'string', enum: ['create', 'update', 'move', 'delete'] },
                       id: { type: 'string' },
-                      parentId: { type: 'string', description: 'For a subtask create operation, the ID of an existing top-level task. Leave unset for a top-level task.' },
+                      is_subtask: { type: 'boolean', description: 'True for a standalone subtask replacing an original task.' },
+                      source_task_title: { type: 'string', description: 'The original task title for a standalone subtask.' },
                       title: { type: 'string' },
                       description: { type: 'string' },
                       status: { type: 'string', enum: ['todo', 'progress', 'done'] },
