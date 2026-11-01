@@ -111,7 +111,8 @@
           <button class="close-button" id="close-dialog-button" type="button" aria-label="Close dialog">&times;</button>
         </div>
         <input id="task-id" type="hidden" />
-        <label class="field-label" for="task-title">Task name</label>
+        <input id="task-parent-id" type="hidden" />
+        <label class="field-label" id="task-title-label" for="task-title">Task name</label>
         <input class="form-input" id="task-title" name="title" maxlength="90" required placeholder="What needs doing?" />
         <label class="field-label" for="task-description">Notes <span>Optional</span></label>
         <textarea class="form-input" id="task-description" name="description" rows="3" maxlength="240" placeholder="Add a little context..."></textarea>

@@ -1,11 +1,11 @@
 # Fieldnotes Kanban
 
-A small Kanban board with email accounts and per-user task sync through Supabase. Tasks are protected by row-level security so each account can only access its own rows.
+A small Kanban board with email accounts, per-user Supabase sync, and nested task checklists. Parent tasks appear in Kanban columns; subtasks are checkable items inside each parent card, with a completion count and progress bar. A parent can move to Done only when all its subtasks are done.
 
 ## Set up Supabase
 
 1. Create a Supabase project.
-2. In the Supabase SQL Editor, run the contents of `supabase-schema.sql`.
+2. In the Supabase SQL Editor, run the contents of `supabase-schema.sql`. If the project already has a `tasks` table, rerun the script to add the `parent_id` relationship and completion trigger; the migration is idempotent.
 3. In Project Settings, copy the project URL and the publishable key (or legacy `anon` key) into `supabase-config.js`.
 4. In Authentication URL Configuration, set the Site URL to your GitHub Pages address and add that same address to the allowed redirect URLs.
 5. In Authentication settings, choose whether new accounts require email confirmation.

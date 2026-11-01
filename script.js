@@ -17,6 +17,7 @@ const descriptionField = document.querySelector('#task-description');
 const statusField = document.querySelector('#task-status');
 const priorityField = document.querySelector('#task-priority');
 const idField = document.querySelector('#task-id');
+const parentIdField = document.querySelector('#task-parent-id');
 const searchField = document.querySelector('#search-input');
 const authForm = document.querySelector('#auth-form');
 const passwordField = document.querySelector('#auth-password');
@@ -55,19 +56,42 @@ function setBoardMessage(message, isError = false) {
 
 function taskMarkup(task) {
   const priority = priorityLabels[task.priority] ? task.priority : 'normal';
+  const canAddSubtask = task.status !== 'done';
   const description = task.description ? `<p class="task-description">${escapeHtml(task.description)}</p>` : '';
+  const subtasks = tasks.filter((item) => item.parent_id === task.id);
+  const completedSubtasks = subtasks.filter((item) => item.status === 'done').length;
+  const subtaskList = subtasks.length ? `<div class="subtask-group" role="group" aria-label="Subtasks for ${escapeHtml(task.title)}">
+    <div class="subtask-summary"><span>Subtasks</span><span>${completedSubtasks} of ${subtasks.length}</span></div>
+    <div class="subtask-progress" aria-hidden="true"><span style="width: ${Math.round((completedSubtasks / subtasks.length) * 100)}%"></span></div>
+    <div class="subtask-list" role="list">${subtasks.map((subtask) => `<div class="subtask-row${subtask.status === 'done' ? ' is-complete' : ''}" role="listitem">
+      <input class="subtask-checkbox" id="subtask-check-${escapeHtml(subtask.id)}" type="checkbox" data-action="toggle-subtask" data-subtask-id="${escapeHtml(subtask.id)}" aria-label="Mark ${escapeHtml(subtask.title)} ${subtask.status === 'done' ? 'incomplete' : 'complete'}" ${subtask.status === 'done' ? 'checked' : ''} />
+      <label for="subtask-check-${escapeHtml(subtask.id)}">${escapeHtml(subtask.title)}</label>
+      <button class="subtask-edit" type="button" data-action="edit-subtask" data-subtask-id="${escapeHtml(subtask.id)}" aria-label="Edit subtask ${escapeHtml(subtask.title)}">Edit</button>
+    </div>`).join('')}</div>
+  </div>` : '';
   return `<article class="task-card" role="listitem" draggable="true" data-task-id="${escapeHtml(task.id)}" tabindex="0">
     <div class="task-card-top"><h3 class="task-title">${escapeHtml(task.title)}</h3><span class="priority priority-${priority}">${priorityLabels[priority]}</span></div>
     ${description}
-    <div class="task-footer"><span class="task-origin"><span>Y</span> You</span><div class="task-actions"><button class="task-action edit" type="button" data-action="edit" aria-label="Edit ${escapeHtml(task.title)}">Edit</button><button class="task-action delete" type="button" data-action="delete" aria-label="Delete ${escapeHtml(task.title)}">Delete</button></div></div>
+    ${subtaskList}
+    <div class="task-footer"><span class="task-origin"><span>Y</span> You</span><div class="task-actions"><button class="task-action edit" type="button" data-action="edit" aria-label="Edit ${escapeHtml(task.title)}">Edit</button><button class="task-action" type="button" data-action="add-subtask" data-parent-id="${escapeHtml(task.id)}" aria-label="Add subtask to ${escapeHtml(task.title)}" title="${canAddSubtask ? 'Add a subtask' : 'Move this task out of Done to add a subtask'}" ${canAddSubtask ? '' : 'disabled'}>+ Subtask</button><button class="task-action delete" type="button" data-action="delete" aria-label="Delete ${escapeHtml(task.title)}">Delete</button></div></div>
   </article>`;
+}
+
+function hasIncompleteSubtasks(taskId) {
+  return tasks.some((task) => task.parent_id === taskId && task.status !== 'done');
 }
 
 function render() {
   const query = searchField.value.trim().toLowerCase();
+  const rootTasks = tasks.filter((task) => !task.parent_id);
   for (const status of statuses) {
-    const statusTasks = tasks.filter((task) => task.status === status);
-    const visibleTasks = statusTasks.filter((task) => `${task.title} ${task.description || ''}`.toLowerCase().includes(query));
+    const statusTasks = rootTasks.filter((task) => task.status === status);
+    const visibleTasks = statusTasks.filter((task) => {
+      if (!query) return true;
+      const taskMatches = `${task.title} ${task.description || ''}`.toLowerCase().includes(query);
+      const subtaskMatches = tasks.some((item) => item.parent_id === task.id && item.title.toLowerCase().includes(query));
+      return taskMatches || subtaskMatches;
+    });
     document.querySelector(`[data-list="${status}"]`).innerHTML = visibleTasks.map(taskMarkup).join('');
     document.querySelector(`[data-count="${status}"]`).textContent = String(statusTasks.length);
     document.querySelector(`[data-empty="${status}"]`).classList.toggle('visible', visibleTasks.length === 0);
@@ -78,7 +102,7 @@ function render() {
 function populateAssistantTaskSelect() {
   const selectedTaskId = assistantTaskSelect.value;
   assistantTaskSelect.replaceChildren(new Option('Choose a task to break down', ''));
-  for (const task of tasks) {
+  for (const task of tasks.filter((item) => !item.parent_id)) {
     const option = new Option(task.title, task.id);
     assistantTaskSelect.add(option);
   }
@@ -116,9 +140,13 @@ function validateAssistantProposal(value) {
     if (operation.type === 'create') {
       const title = typeof operation.title === 'string' ? operation.title.trim() : '';
       const description = typeof operation.description === 'string' ? operation.description.trim() : '';
+      const parentId = operation.parent_id ?? null;
+      const parentTask = parentId ? tasks.find((task) => task.id === parentId && !task.parent_id) : null;
       if (!title || title.length > 90 || description.length > 240) return null;
+      if (parentId !== null && (!parentTask || parentTask.status === 'done')) return null;
       if (!statuses.includes(operation.status) || !priorityLabels[operation.priority]) return null;
-      proposal.push({ type: 'create', title, description, status: operation.status, priority: operation.priority });
+      if (parentId && !['todo', 'done'].includes(operation.status)) return null;
+      proposal.push({ type: 'create', parent_id: parentId, title, description, status: operation.status, priority: operation.priority });
       continue;
     }
 
@@ -130,6 +158,9 @@ function validateAssistantProposal(value) {
       proposal.push({ type: 'delete', id: operation.id });
     } else if (operation.type === 'move') {
       if (!statuses.includes(operation.status)) return null;
+      const task = tasks.find((item) => item.id === operation.id);
+      if (task?.parent_id && !['todo', 'done'].includes(operation.status)) return null;
+      if (task && !task.parent_id && operation.status === 'done' && hasIncompleteSubtasks(task.id)) return null;
       proposal.push({ type: 'move', id: operation.id, status: operation.status });
     } else {
       const update = { type: 'update', id: operation.id };
@@ -154,6 +185,10 @@ function validateAssistantProposal(value) {
 
 function describeProposal(operation) {
   if (operation.type === 'create') {
+    if (operation.parent_id) {
+      const parentTask = tasks.find((task) => task.id === operation.parent_id);
+      return `Add subtask "${operation.title}" to "${parentTask?.title || 'Unknown task'}"`;
+    }
     return `Add "${operation.title}" to ${operation.status === 'todo' ? 'To do' : operation.status === 'progress' ? 'In progress' : 'Done'} (${operation.priority} priority)`;
   }
   const task = tasks.find((item) => item.id === operation.id);
@@ -262,6 +297,7 @@ async function applyProposalOperation(operation, ownerId) {
       description: operation.description,
       status: operation.status,
       priority: operation.priority,
+      parent_id: operation.parent_id,
     });
     if (currentUser?.id !== ownerId) throw new Error('Your account changed while saving.');
     tasks.unshift(createdTask);
@@ -274,7 +310,7 @@ async function applyProposalOperation(operation, ownerId) {
     const { error } = await supabaseClient.from('tasks').delete().eq('id', task.id);
     if (error) throw error;
     if (currentUser?.id !== ownerId) throw new Error('Your account changed while saving.');
-    tasks = tasks.filter((item) => item.id !== task.id);
+    tasks = tasks.filter((item) => item.id !== task.id && item.parent_id !== task.id);
     return;
   }
 
@@ -345,15 +381,21 @@ function discardAssistantProposal() {
   setAssistantBusy(false);
 }
 
-function openTaskDialog(status = 'todo', task = null) {
+function openTaskDialog(status = 'todo', task = null, parentId = '') {
   form.reset();
+  parentIdField.value = task?.parent_id || parentId;
+  const isSubtask = Boolean(parentIdField.value);
+  const progressOption = statusField.querySelector('option[value="progress"]');
+  progressOption.hidden = isSubtask;
+  statusField.querySelector('option[value="done"]').disabled = Boolean(task && !isSubtask && hasIncompleteSubtasks(task.id));
   idField.value = task?.id || '';
   titleField.value = task?.title || '';
   descriptionField.value = task?.description || '';
-  statusField.value = task?.status || status;
+  document.querySelector('#task-title-label').textContent = isSubtask ? 'Subtask name' : 'Task name';
+  statusField.value = isSubtask ? (task?.status === 'done' ? 'done' : 'todo') : (task?.status || status);
   priorityField.value = task?.priority || 'normal';
-  document.querySelector('#dialog-title').textContent = task ? 'Edit task' : 'Add a task';
-  document.querySelector('#save-task-button').textContent = task ? 'Save changes' : 'Add task';
+  document.querySelector('#dialog-title').textContent = task ? (isSubtask ? 'Edit subtask' : 'Edit task') : (isSubtask ? 'Add a subtask' : 'Add a task');
+  document.querySelector('#save-task-button').textContent = task ? 'Save changes' : (isSubtask ? 'Add subtask' : 'Add task');
   dialog.showModal();
   titleField.focus();
 }
@@ -391,7 +433,7 @@ async function loadTasksForUser() {
   const userId = currentUser.id;
   const { data, error } = await supabaseClient
     .from('tasks')
-    .select('id, title, description, status, priority, created_at')
+    .select('id, title, description, status, priority, parent_id, created_at')
     .order('created_at', { ascending: true });
   if (error) throw error;
   if (currentUser?.id !== userId) return;
@@ -408,6 +450,7 @@ async function loadTasksForUser() {
     description: task.description || '',
     status: task.status,
     priority: priorityLabels[task.priority] ? task.priority : 'normal',
+    parent_id: null,
   }));
   if (!legacyTasks.length) {
     tasks = [];
@@ -417,7 +460,7 @@ async function loadTasksForUser() {
   const { data: importedTasks, error: importError } = await supabaseClient
     .from('tasks')
     .insert(legacyTasks)
-    .select('id, title, description, status, priority, created_at');
+    .select('id, title, description, status, priority, parent_id, created_at');
   if (importError) throw importError;
   if (currentUser?.id !== userId) return;
   tasks = importedTasks;
@@ -439,10 +482,11 @@ async function persistTask(task) {
     description: task.description,
     status: task.status,
     priority: task.priority,
+    parent_id: task.parent_id || null,
   };
   const result = task.id
-    ? await supabaseClient.from('tasks').update(fields).eq('id', task.id).select('id, title, description, status, priority, created_at').single()
-    : await supabaseClient.from('tasks').insert({ ...fields, user_id: currentUser.id }).select('id, title, description, status, priority, created_at').single();
+    ? await supabaseClient.from('tasks').update(fields).eq('id', task.id).select('id, title, description, status, priority, parent_id, created_at').single()
+    : await supabaseClient.from('tasks').insert({ ...fields, user_id: currentUser.id }).select('id, title, description, status, priority, parent_id, created_at').single();
   if (result.error) throw result.error;
   return result.data;
 }
@@ -540,6 +584,10 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const title = titleField.value.trim();
   if (!title) return;
+  if (!parentIdField.value && idField.value && statusField.value === 'done' && hasIncompleteSubtasks(idField.value)) {
+    setBoardMessage('Complete all subtasks before moving this task to Done.', true);
+    return;
+  }
   const saveButton = document.querySelector('#save-task-button');
   const originalLabel = saveButton.textContent;
   saveButton.disabled = true;
@@ -548,6 +596,7 @@ form.addEventListener('submit', async (event) => {
   try {
     const updatedTask = await persistTask({
       id: idField.value,
+      parent_id: parentIdField.value || null,
       title,
       description: descriptionField.value.trim(),
       status: statusField.value,
@@ -574,13 +623,50 @@ document.querySelector('.board').addEventListener('click', async (event) => {
   const card = actionButton.closest('[data-task-id]');
   const task = tasks.find((item) => item.id === card.dataset.taskId);
   if (!task) return;
+  if (actionButton.dataset.action === 'toggle-subtask') {
+    const subtask = tasks.find((item) => item.id === actionButton.dataset.subtaskId && item.parent_id === task.id);
+    if (!subtask) return;
+    if (!actionButton.checked && task.status === 'done') {
+      render();
+      setBoardMessage('Move the parent task out of Done before reopening this subtask.', true);
+      return;
+    }
+    const previousStatus = subtask.status;
+    subtask.status = actionButton.checked ? 'done' : 'todo';
+    render();
+    try {
+      const savedSubtask = await persistTask(subtask);
+      tasks = tasks.map((item) => item.id === savedSubtask.id ? savedSubtask : item);
+      render();
+      setCloudStatus('Synced to Supabase');
+    } catch (error) {
+      subtask.status = previousStatus;
+      render();
+      setCloudStatus('Sync failed', true);
+      setBoardMessage(`Could not update subtask: ${error.message}`, true);
+    }
+    return;
+  }
+  if (actionButton.dataset.action === 'add-subtask') {
+    if (task.status === 'done') {
+      setBoardMessage('Move the parent task out of Done before adding a subtask.', true);
+      return;
+    }
+    openTaskDialog(task.status, null, actionButton.dataset.parentId);
+    return;
+  }
+  if (actionButton.dataset.action === 'edit-subtask') {
+    const subtask = tasks.find((item) => item.id === actionButton.dataset.subtaskId && item.parent_id === task.id);
+    if (subtask) openTaskDialog(subtask.status, subtask);
+    return;
+  }
   if (actionButton.dataset.action === 'edit') openTaskDialog(task.status, task);
   if (actionButton.dataset.action === 'delete') {
     actionButton.disabled = true;
     try {
       const { error } = await supabaseClient.from('tasks').delete().eq('id', task.id);
       if (error) throw error;
-      tasks = tasks.filter((item) => item.id !== task.id);
+      tasks = tasks.filter((item) => item.id !== task.id && item.parent_id !== task.id);
       render();
       setCloudStatus('Synced to Supabase');
     } catch (error) {
@@ -616,6 +702,10 @@ document.querySelector('.board').addEventListener('dragend', (event) => {
 async function moveTask(taskId, status) {
   const task = tasks.find((item) => item.id === taskId);
   if (!task || task.status === status) return;
+  if (!task.parent_id && status === 'done' && hasIncompleteSubtasks(taskId)) {
+    setBoardMessage('Complete all subtasks before moving this task to Done.', true);
+    return;
+  }
   const previousStatus = task.status;
   task.status = status;
   render();
@@ -686,7 +776,7 @@ document.querySelector('#breakdown-task-button').addEventListener('click', () =>
     setAssistantStatus('Choose a task first.', true);
     return;
   }
-  void askAssistant('breakdown', `Break this task into 3 to 6 small, actionable subtasks. Keep the suggestions concise and do not add them to my board: ${task.title}`, task.id);
+  void askAssistant('breakdown', `Propose 3 to 6 small, actionable subtasks under this task. The app will show me a preview before adding them: ${task.title}`, task.id);
 });
 
 assistantForm.addEventListener('submit', (event) => {
