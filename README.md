@@ -34,6 +34,10 @@ The assistant uses OpenRouter's `openrouter/free` model router through a Supabas
 
 The function verifies the signed-in Supabase user and reads tasks under the existing row-level security policies. OpenRouter and its selected model provider receive the task titles, notes, and your prompt. In chat, the assistant can propose task creation, edits, moves, and deletions. Breaking down a task proposes standalone subtasks and removal of the original task. The function validates proposals but never writes tasks; review the preview and click **Apply changes** to perform the operations with your signed-in account. Discarding a proposal leaves the board unchanged. Review OpenRouter's privacy settings and usage limits before sharing the site.
 
+## Undo
+
+The **Undo** button in the top bar reverts the last change you made (create, edit, move, delete, or one whole AI **Apply changes**). It is always visible and disabled when there is nothing to undo. History keeps the last 50 changes for the current browser session and is cleared on sign-out or when switching accounts. It needs no schema change or Edge Function deployment.
+
 ## Run locally
 
 You can open `index.html` to preview the page, but Supabase authentication needs an allowed web URL. For a full sign-in test, use the GitHub Pages address configured in Supabase. No build step is needed.
