@@ -167,6 +167,7 @@ textarea.form-input { resize: vertical; }
 .assistant-form button:disabled, .assistant-shortcut:disabled { cursor: wait; opacity: .6; }
 .account-email { max-width: 180px; overflow: hidden; color: #697670; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .sign-out-button { min-height: 32px; padding-inline: 10px; font-size: 11px; }
+.rollback-button { min-height: 32px; padding-inline: 10px; font-size: 11px; }
 .save-dot.is-error { background: var(--coral); }
 .auth-panel { width: min(460px, 100%); margin: 28px auto 0; padding: 28px; border: 1px solid #dfe5e0; border-radius: 7px; background: #fff; box-shadow: 0 8px 26px rgba(32, 43, 40, .045); }
 .auth-heading h1, .setup-panel h1 { margin-bottom: 8px; font-size: 25px; }

@@ -9,6 +9,8 @@ let draggedTaskId = null;
 let authMode = 'sign-in';
 let sessionGeneration = 0;
 let supabaseClient = null;
+let historyStack = [];
+const MAX_HISTORY = 50;
 
 const dialog = document.querySelector('#task-dialog');
 const form = document.querySelector('#task-form');
@@ -283,30 +285,32 @@ async function askAssistant(action, prompt, taskId = '') {
 
 async function applyProposalOperation(operation, ownerId) {
   if (operation.type === 'create') {
-    const createdTask = await persistTask({
-      id: '',
-      title: operation.title,
-      description: operation.description,
-      status: operation.status,
-      priority: operation.priority,
-      is_subtask: operation.is_subtask,
-      source_task_title: operation.source_task_title,
-      subtask_ref: operation.subtask_ref,
-    });
-    if (currentUser?.id !== ownerId) throw new Error('Your account changed while saving.');
-    tasks.unshift(createdTask);
-    return;
+    saveHistorySnapshot();
+        const createdTask = await persistTask({
+          id: '',
+          title: operation.title,
+          description: operation.description,
+          status: operation.status,
+          priority: operation.priority,
+          is_subtask: operation.is_subtask,
+          source_task_title: operation.source_task_title,
+          subtask_ref: operation.subtask_ref,
+        });
+        if (currentUser?.id !== ownerId) throw new Error('Your account changed while saving.');
+        tasks.unshift(createdTask);
+        return;
   }
 
   const task = tasks.find((item) => item.id === operation.id);
   if (!task) throw new Error('A proposed task is no longer on the board.');
   if (operation.type === 'delete') {
-    const { error } = await supabaseClient.from('tasks').delete().eq('id', task.id);
-    if (error) throw error;
-    if (currentUser?.id !== ownerId) throw new Error('Your account changed while saving.');
-    tasks = tasks.filter((item) => item.id !== task.id);
-    return;
-  }
+      saveHistorySnapshot();
+      const { error } = await supabaseClient.from('tasks').delete().eq('id', task.id);
+      if (error) throw error;
+      if (currentUser?.id !== ownerId) throw new Error('Your account changed while saving.');
+      tasks = tasks.filter((item) => item.id !== task.id);
+      return;
+    }
 
   const updatedTask = await persistTask(operation.type === 'move'
     ? { ...task, status: operation.status }
@@ -319,6 +323,7 @@ async function applyAssistantProposal() {
   if (!pendingProposal || assistantRequestInFlight) return;
   const ownerId = currentUser?.id;
   if (!ownerId) return;
+  saveHistorySnapshot();
   const operations = [...pendingProposal];
   let appliedCount = 0;
   setAssistantBusy(true);
@@ -488,6 +493,50 @@ async function persistTask(task) {
   return result.data;
 }
 
+function saveHistorySnapshot() {
+  if (!currentUser) return;
+  const snapshot = JSON.parse(JSON.stringify(tasks));
+  historyStack.push(snapshot);
+  if (historyStack.length > MAX_HISTORY) historyStack.shift();
+  updateRollbackButton();
+}
+
+function updateRollbackButton() {
+  const rollbackButton = document.querySelector('#rollback-button');
+  if (rollbackButton) {
+    rollbackButton.hidden = historyStack.length === 0;
+  }
+}
+
+async function rollbackLastChange() {
+  if (!currentUser || historyStack.length === 0) return;
+  const previousTasks = historyStack.pop();
+  try {
+    setCloudStatus('Rolling back...');
+    for (const task of tasks) {
+      if (!previousTasks.some((t) => t.id === task.id)) {
+        await supabaseClient.from('tasks').delete().eq('id', task.id);
+      }
+    }
+    for (const task of previousTasks) {
+      const existing = tasks.find((t) => t.id === task.id);
+      if (existing) {
+        await persistTask({ ...task });
+      } else {
+        await persistTask({ ...task, id: '' });
+      }
+    }
+    tasks = previousTasks;
+    render();
+    setCloudStatus('Synced to Supabase');
+  } catch (error) {
+    historyStack.push(previousTasks);
+    setCloudStatus('Rollback failed', true);
+    setBoardMessage(`Could not rollback: ${error.message}`, true);
+  }
+  updateRollbackButton();
+}
+
 async function applySession(session) {
   const generation = ++sessionGeneration;
   const nextUser = session?.user || null;
@@ -508,11 +557,13 @@ async function applySession(session) {
   if (!currentUser) {
     tasks = [];
     assistantMessages = [];
-    renderAssistantTranscript();
-    render();
-    setCloudStatus('Sign in to sync');
-    return;
-  }
+      historyStack = [];
+      renderAssistantTranscript();
+      render();
+      updateRollbackButton();
+      setCloudStatus('Sign in to sync');
+      return;
+    }
 
   tasks = [];
   render();
@@ -566,6 +617,8 @@ document.querySelector('#sign-out-button').addEventListener('click', async () =>
   if (error) setBoardMessage(`Could not sign out: ${error.message}`, true);
 });
 
+document.querySelector('#rollback-button').addEventListener('click', () => rollbackLastChange());
+
 document.querySelector('#new-task-button').addEventListener('click', () => openTaskDialog());
 document.querySelectorAll('.add-column-task').forEach((button) => {
   button.addEventListener('click', () => openTaskDialog(button.dataset.addStatus));
@@ -597,9 +650,10 @@ form.addEventListener('submit', async (event) => {
       status: statusField.value,
       priority: priorityField.value,
     });
-    const existingIndex = tasks.findIndex((task) => task.id === updatedTask.id);
-    if (existingIndex >= 0) tasks[existingIndex] = updatedTask;
-    else tasks.unshift(updatedTask);
+    saveHistorySnapshot();
+        const existingIndex = tasks.findIndex((task) => task.id === updatedTask.id);
+        if (existingIndex >= 0) tasks[existingIndex] = updatedTask;
+        else tasks.unshift(updatedTask);
     render();
     dialog.close();
     setCloudStatus('Synced to Supabase');
@@ -620,18 +674,19 @@ document.querySelector('.board').addEventListener('click', async (event) => {
   if (!task) return;
   if (actionButton.dataset.action === 'edit') openTaskDialog(task.status, task);
   if (actionButton.dataset.action === 'delete') {
-    actionButton.disabled = true;
-    try {
-      const { error } = await supabaseClient.from('tasks').delete().eq('id', task.id);
-      if (error) throw error;
-      tasks = tasks.filter((item) => item.id !== task.id);
-      render();
-      setCloudStatus('Synced to Supabase');
-    } catch (error) {
-      actionButton.disabled = false;
-      setBoardMessage(`Could not delete task: ${error.message}`, true);
+      saveHistorySnapshot();
+      actionButton.disabled = true;
+      try {
+        const { error } = await supabaseClient.from('tasks').delete().eq('id', task.id);
+        if (error) throw error;
+        tasks = tasks.filter((item) => item.id !== task.id);
+        render();
+        setCloudStatus('Synced to Supabase');
+      } catch (error) {
+        actionButton.disabled = false;
+        setBoardMessage(`Could not delete task: ${error.message}`, true);
+      }
     }
-  }
 });
 
 searchField.addEventListener('input', render);
@@ -660,6 +715,7 @@ document.querySelector('.board').addEventListener('dragend', (event) => {
 async function moveTask(taskId, status) {
   const task = tasks.find((item) => item.id === taskId);
   if (!task || task.status === status) return;
+  saveHistorySnapshot();
   const previousStatus = task.status;
   task.status = status;
   render();
