@@ -846,6 +846,13 @@ document.querySelector('#breakdown-task-button').addEventListener('click', () =>
   void askAssistant('breakdown', `Propose 3 to 6 small, actionable subtasks under this task. The app will show me a preview before adding them: ${task.title}`, task.id);
 });
 
+// Enter sends; Shift+Enter inserts a new line. Ignored while an IME is composing text.
+assistantInput.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+  event.preventDefault();
+  assistantForm.requestSubmit();
+});
+
 assistantForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const prompt = assistantInput.value.trim();

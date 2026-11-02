@@ -104,6 +104,23 @@ test('gives every parent task its own colour shared by its subtasks', async ({ p
   expect(distinct.size).toBe(3);
 });
 
+test('Enter sends an assistant message and Shift+Enter adds a new line', async ({ page }) => {
+  await openBoard(page);
+  await page.locator('#open-assistant-button').click();
+  const input = page.locator('#assistant-input');
+
+  await input.fill('first line');
+  await input.press('Shift+Enter');
+  await input.pressSequentially('second line');
+  await expect(input).toHaveValue('first line\nsecond line');
+  expect(await page.evaluate(() => window.__invokeCalls.length)).toBe(0);
+
+  await input.press('Enter');
+  await expect(page.locator('.assistant-message-user')).toHaveText('first line\nsecond line');
+  await expect(input).toHaveValue('');
+  expect(await page.evaluate(() => window.__invokeCalls.length)).toBe(1);
+});
+
 test('applying an assistant breakdown is one Undo step', async ({ page }) => {
   await openBoard(page, [{ id: 'parent-1', title: 'Write report' }]);
   const proposal = [
