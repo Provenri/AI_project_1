@@ -504,7 +504,7 @@ function saveHistorySnapshot() {
 function updateRollbackButton() {
   const rollbackButton = document.querySelector('#rollback-button');
   if (rollbackButton) {
-    rollbackButton.hidden = historyStack.length === 0;
+    rollbackButton.disabled = historyStack.length === 0;
   }
 }
 
