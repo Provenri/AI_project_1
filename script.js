@@ -86,16 +86,15 @@ function taskMarkup(task) {
   </article>`;
 }
 
-// Sort all cards by task name; subtasks additionally by subtask_ref ascending.
+// Sort by the task name shown on the card (a subtask shows its parent's name),
+// then the parent task itself, then subtasks by subtask ID ascending.
 function compareCards(a, b) {
   const collator = { numeric: true, sensitivity: 'base' };
-  const titleCompare = (a.title || '').localeCompare(b.title || '', undefined, collator);
-  if (titleCompare !== 0) return titleCompare;
-  // If titles are equal, subtasks sort by subtask_ref
-  if (a.is_subtask && b.is_subtask) {
-    return (a.subtask_ref || '~').localeCompare(b.subtask_ref || '~', undefined, collator);
-  }
-  return 0;
+  const nameOf = (task) => (task.is_subtask && task.source_task_title ? task.source_task_title : task.title) || '';
+  return nameOf(a).localeCompare(nameOf(b), undefined, collator)
+    || Number(!!a.is_subtask) - Number(!!b.is_subtask)
+    || (a.subtask_ref || '~').localeCompare(b.subtask_ref || '~', undefined, collator)
+    || (a.title || '').localeCompare(b.title || '', undefined, collator);
 }
 
 function render() {
