@@ -55,6 +55,8 @@ npm test
 
 Playwright starts its own static server on port 4173. To inspect a failed run, use `npx playwright show-trace` on the trace in `test-results/`.
 
+The same tests run automatically on GitHub Actions for every push to `main` and every pull request (`.github/workflows/tests.yml`). Check the **Actions** tab for results. On a failure, the Playwright traces are attached to the run as the `playwright-traces` artifact.
+
 ## Cloud sandbox (GitHub Codespaces)
 
 The repository includes a `.devcontainer` config. On GitHub, choose **Code → Codespaces → Create codespace on main**. The container has Node 22 and the project's dev dependencies (Playwright with Chromium, `http-server`) installed by `npm install`, and serves the board on port 8080 (forwarded automatically). Open it in your normal browser from the **Ports** tab (globe icon); VS Code's embedded Simple Browser can't open private forwarded ports. Run `node --version` or `npx playwright --version` in the terminal to check.
