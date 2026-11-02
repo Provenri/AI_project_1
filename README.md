@@ -42,6 +42,10 @@ The **Undo** button in the top bar reverts the last change you made (create, edi
 
 You can open `index.html` to preview the page, but Supabase authentication needs an allowed web URL. For a full sign-in test, use the GitHub Pages address configured in Supabase. No build step is needed.
 
+## Cloud sandbox (GitHub Codespaces)
+
+The repository includes a `.devcontainer` config. On GitHub, choose **Code → Codespaces → Create codespace on main**. The container has Node 22, `http-server` and Playwright (Chromium) installed, and serves the board on port 8080 (forwarded and previewed automatically). Run `node --version` or `npx playwright --version` in the terminal to check. As with any web URL, Supabase sign-in works only if the forwarded `*.app.github.dev` address is allowed in your Supabase Auth URL settings.
+
 ## GitHub Pages
 
 In the repository's **Settings → Pages**, deploy from the `main` branch and the `/(root)` folder.

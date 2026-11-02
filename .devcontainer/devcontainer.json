@@ -1,0 +1,20 @@
+{
+  "name": "Fieldnotes Kanban",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": {
+      "label": "Kanban board",
+      "onAutoForward": "openPreview"
+    }
+  },
+  "postCreateCommand": "npm install -g http-server playwright && npx playwright install --with-deps chromium",
+  "postAttachCommand": "nohup http-server . -p 8080 -c-1 --silent > /dev/null 2>&1 &",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-playwright.playwright"
+      ]
+    }
+  }
+}
