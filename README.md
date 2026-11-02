@@ -44,8 +44,21 @@ You can open `index.html` to preview the page, but Supabase authentication needs
 
 ## Cloud sandbox (GitHub Codespaces)
 
-The repository includes a `.devcontainer` config. On GitHub, choose **Code → Codespaces → Create codespace on main**. The container has Node 22, `http-server` and Playwright (Chromium) installed, and serves the board on port 8080 (forwarded and previewed automatically). Run `node --version` or `npx playwright --version` in the terminal to check. As with any web URL, Supabase sign-in works only if the forwarded `*.app.github.dev` address is allowed in your Supabase Auth URL settings.
+The repository includes a `.devcontainer` config. On GitHub, choose **Code → Codespaces → Create codespace on main**. The container has Node 22, `http-server` and Playwright (Chromium) installed, and serves the board on port 8080 (forwarded and previewed automatically). Run `node --version` or `npx playwright --version` in the terminal to check.
 
+### Supabase settings for Codespaces
+
+Signing in with an existing email and password works from the codespace without changes. New sign-ups that need email confirmation return to the codespace address, so allow it in Supabase:
+
+1. In the codespace, open the **Ports** tab and copy the forwarded address for port 8080 (`https://<codespace-name>-8080.app.github.dev`).
+2. In the Supabase dashboard, go to **Authentication → URL Configuration**.
+3. Under **Redirect URLs**, click **Add URL** and paste that address. Alternatively add `https://*.app.github.dev/**` so new codespaces work without further changes. The wildcard is looser, so prefer a single URL if you can.
+4. Keep the **Site URL** set to your GitHub Pages address, then click **Save**.
+
+Notes:
+- The address changes for each new codespace.
+- Port 8080 is private by default, so you must be signed in to GitHub to open it.
+- The codespace uses the same Supabase project as the live site, so tasks created there appear on the live board for the same account. Use a separate test account to keep them apart.
 ## GitHub Pages
 
 In the repository's **Settings → Pages**, deploy from the `main` branch and the `/(root)` folder.
