@@ -44,7 +44,7 @@ You can open `index.html` to preview the page, but Supabase authentication needs
 
 ## Cloud sandbox (GitHub Codespaces)
 
-The repository includes a `.devcontainer` config. On GitHub, choose **Code → Codespaces → Create codespace on main**. The container has Node 22, `http-server` and Playwright (Chromium) installed, and serves the board on port 8080 (forwarded and previewed automatically). Run `node --version` or `npx playwright --version` in the terminal to check.
+The repository includes a `.devcontainer` config. On GitHub, choose **Code → Codespaces → Create codespace on main**. The container has Node 22, `http-server` and Playwright (Chromium) installed, and serves the board on port 8080 (forwarded automatically). Open it in your normal browser from the **Ports** tab (globe icon); VS Code's embedded Simple Browser can't open private forwarded ports. Run `node --version` or `npx playwright --version` in the terminal to check.
 
 ### Supabase settings for Codespaces
 
