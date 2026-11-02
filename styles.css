@@ -93,13 +93,17 @@ kbd { padding: 2px 5px; border: 1px solid #e6e9e7; border-radius: 3px; color: #9
 .task-list { min-height: 30px; display: grid; gap: 9px; }
 .task-card { padding: 13px 13px 11px; border: 1px solid #e1e6e2; border-radius: 5px; background: var(--paper); box-shadow: 0 2px 5px rgba(32, 43, 40, .025); cursor: grab; animation: arrive .25s ease both; }
 .task-card-plain { border-top: 3px solid #8fa3b8; }
-.task-card-subtask { border-color: #cfe0d5; border-left: 4px solid #3f8f5f; background: linear-gradient(180deg, #eef7f1, #f9fbf9 60%); }
+.task-card-subtask {
+  border-color: var(--group-color, #cfe0d5);
+  border-left: 4px solid var(--group-color, #3f8f5f);
+  background: linear-gradient(180deg, var(--group-color, #eef7f1), color-mix(in srgb, var(--group-color, #eef7f1) 60%, white) 60%);
+}
 .task-card:active { cursor: grabbing; }
 .task-card.is-dragging { opacity: .4; }
 .task-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .task-title { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
 .task-description { margin: 7px 0 0; color: #78827e; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
-.subtask-name { display: flex; align-items: baseline; gap: 7px; margin: 6px 0 0; padding-left: 9px; border-left: 2px solid #3f8f5f; color: #2f5f43; font-size: 11px; font-weight: 500; line-height: 1.45; overflow-wrap: anywhere; }
+.subtask-name { display: flex; align-items: baseline; gap: 7px; margin: 6px 0 0; padding-left: 9px; border-left: 2px solid var(--group-color, #3f8f5f); color: #2f5f43; font-size: 11px; font-weight: 500; line-height: 1.45; overflow-wrap: anywhere; }
 .subtask-ref { flex: 0 0 auto; padding: 1px 5px; border: 1px solid #3f8f5f; border-radius: 3px; color: #2f5f43; font-size: 9px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .subtask-kind { flex: 0 0 auto; padding: 1px 5px; border-radius: 3px; background: #3f8f5f; color: #fff; font-size: 8px; font-weight: 800; letter-spacing: .04em; }
 .priority { flex: 0 0 auto; padding: 4px 6px; border-radius: 3px; color: #66716b; background: #eef1ef; font-size: 9px; font-weight: 700; }
