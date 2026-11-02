@@ -59,12 +59,13 @@ function setBoardMessage(message, isError = false) {
   element.classList.toggle('is-error', isError);
 }
 
-// Generate a consistent pastel color from a string (parent task title)
-function colorFromString(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  const h = Math.abs(hash) % 360;
-  return `hsl(${h}, 55%, 88%)`;
+// Each parent task gets its own hue, evenly spaced over the sorted list of parent titles.
+let groupColors = new Map();
+
+function updateGroupColors() {
+  const parents = [...new Set(tasks.filter((t) => t.is_subtask && t.source_task_title).map((t) => t.source_task_title))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+  groupColors = new Map(parents.map((title, index) => [title, `hsl(${Math.round((index * 360) / parents.length)}, 60%, 85%)`]));
 }
 
 function taskMarkup(task) {
@@ -75,7 +76,7 @@ function taskMarkup(task) {
   const subtaskLine = task.is_subtask
     ? `<p class="subtask-name"><span class="subtask-kind">SUBTASK</span>${task.subtask_ref ? `<span class="subtask-ref">${escapeHtml(task.subtask_ref)}</span>` : ''}<span>${escapeHtml(hasSource ? task.title : '')}</span></p>`
     : '';
-  const groupColor = task.is_subtask && task.source_task_title ? colorFromString(task.source_task_title) : '';
+  const groupColor = task.is_subtask && task.source_task_title ? groupColors.get(task.source_task_title) : '';
   const style = groupColor ? `style="--group-color: ${groupColor};"` : '';
   return `<article class="task-card${task.is_subtask ? ' task-card-subtask' : ' task-card-plain'}" role="listitem" draggable="true" data-task-id="${escapeHtml(task.id)}" tabindex="0" ${style}>
     <div class="task-card-top"><h3 class="task-title">${escapeHtml(heading)}</h3><span class="priority priority-${priority}">${priorityLabels[priority]}</span></div>
@@ -98,6 +99,7 @@ function compareCards(a, b) {
 }
 
 function render() {
+  updateGroupColors();
   const query = searchField.value.trim().toLowerCase();
   for (const status of statuses) {
     const statusTasks = tasks.filter((task) => task.status === status).sort(compareCards);
