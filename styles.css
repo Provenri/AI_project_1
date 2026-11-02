@@ -71,7 +71,7 @@ kbd { padding: 2px 5px; border: 1px solid #e6e9e7; border-radius: 3px; color: #9
 .button-primary span { font-size: 18px; font-weight: 400; line-height: 1; }
 .button-quiet { border-color: var(--line); background: #fff; }
 .button-quiet:hover { background: #f4f6f4; }
-.button-quiet:disabled { opacity: 0.5; cursor: not-allowed; }
+.button-quiet:disabled { opacity: 1; color: #7a867f; border-color: #c3cdc7; border-style: dashed; background: #f4f6f4; cursor: not-allowed; }
 .button-assistant { gap: 7px; padding-inline: 12px; border-color: #d7e1da; color: var(--green-dark); background: #f8faf8; }
 .button-assistant:hover { border-color: #b7cbbd; background: #edf4ef; }
 .assistant-mark { width: 20px; height: 20px; display: inline-grid; place-items: center; border-radius: 4px; color: #fff; background: var(--green); font-size: 8px; font-weight: 700; }
