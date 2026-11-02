@@ -1,8 +1,11 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const allowedOrigin = 'https://provenri.github.io';
-const corsHeaders = {
-  'Access-Control-Allow-Origin': allowedOrigin,
+// Optional ALLOWED_ORIGINS secret: comma-separated exact origins (e.g. a Codespaces URL) allowed in addition to GitHub Pages.
+const allowedOrigins = new Set([
+  'https://provenri.github.io',
+  ...(Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map((value) => value.trim()).filter(Boolean),
+]);
+const staticCorsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, apikey, x-client-info, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Vary': 'Origin',
@@ -120,14 +123,22 @@ function validateProposal(value: unknown, boardTasks: BoardTask[], action: Assis
 function jsonResponse(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
   });
 }
 
 Deno.serve(async (request) => {
   const origin = request.headers.get('Origin');
-  if (origin && origin !== allowedOrigin) return jsonResponse({ error: 'Origin not allowed.' }, 403);
-  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  const headers = new Headers(staticCorsHeaders);
+  if (origin && allowedOrigins.has(origin)) headers.set('Access-Control-Allow-Origin', origin);
+  const response = await handleRequest(request, origin);
+  response.headers.forEach((value, key) => headers.set(key, value));
+  return new Response(response.body, { status: response.status, headers });
+});
+
+async function handleRequest(request: Request, origin: string | null): Promise<Response> {
+  if (origin && !allowedOrigins.has(origin)) return jsonResponse({ error: 'Origin not allowed.' }, 403);
+  if (request.method === 'OPTIONS') return new Response('ok');
   if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed.' }, 405);
 
   const authorization = request.headers.get('Authorization');
@@ -313,4 +324,4 @@ Deno.serve(async (request) => {
       : '';
   if (!reply) return jsonResponse({ error: 'The model returned no text. Please try again.' }, 502);
   return jsonResponse({ reply });
-});
+}

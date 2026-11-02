@@ -8,8 +8,8 @@
       "onAutoForward": "notify"
     }
   },
-  "postCreateCommand": "npm install -g http-server playwright && npx playwright install --with-deps chromium",
-  "postAttachCommand": "nohup http-server . -p 8080 -c-1 --silent > /dev/null 2>&1 &",
+  "postCreateCommand": "npm install && npx playwright install --with-deps chromium",
+  "postAttachCommand": "nohup npm run serve --silent > /dev/null 2>&1 &",
   "customizations": {
     "vscode": {
       "extensions": [

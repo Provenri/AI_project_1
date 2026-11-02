@@ -1,0 +1,13 @@
+{
+  "name": "fieldnotes-kanban",
+  "private": true,
+  "description": "Static Kanban board. Node is only used for the Playwright tests and the local dev server.",
+  "scripts": {
+    "serve": "http-server . -p 8080 -c-1",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "http-server": "^14.1.1"
+  }
+}

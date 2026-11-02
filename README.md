@@ -31,6 +31,7 @@ The assistant uses OpenRouter's `openrouter/free` model router through a Supabas
 	```
 
 4. Commit and push the website changes to `main` so GitHub Pages deploys the assistant interface.
+5. Optional: to let the assistant run from other web addresses (for example a Codespaces URL), add an Edge Function secret `ALLOWED_ORIGINS` with comma-separated exact origins, such as `https://<codespace-name>-8080.app.github.dev`. `https://provenri.github.io` is always allowed. Redeploy the function once after updating `index.ts`; later changes to the secret need no redeploy. Avoid wildcards, because they would let anyone's page use your OpenRouter quota.
 
 The function verifies the signed-in Supabase user and reads tasks under the existing row-level security policies. OpenRouter and its selected model provider receive the task titles, notes, and your prompt. In chat, the assistant can propose task creation, edits, moves, and deletions. Breaking down a task proposes standalone subtasks and removal of the original task. The function validates proposals but never writes tasks; review the preview and click **Apply changes** to perform the operations with your signed-in account. Discarding a proposal leaves the board unchanged. Review OpenRouter's privacy settings and usage limits before sharing the site.
 
@@ -42,9 +43,21 @@ The **Undo** button in the top bar reverts the last change you made (create, edi
 
 You can open `index.html` to preview the page, but Supabase authentication needs an allowed web URL. For a full sign-in test, use the GitHub Pages address configured in Supabase. No build step is needed.
 
+## Tests
+
+Browser tests live in `tests/` and use Playwright with an in-memory fake of the Supabase client, so they never touch your real project or data. They cover Undo, drag-and-drop, sorting, subtask colours, error handling and the assistant's Apply changes flow.
+
+```bash
+npm install
+npx playwright install chromium   # first time only (the Codespace does this for you)
+npm test
+```
+
+Playwright starts its own static server on port 4173. To inspect a failed run, use `npx playwright show-trace` on the trace in `test-results/`.
+
 ## Cloud sandbox (GitHub Codespaces)
 
-The repository includes a `.devcontainer` config. On GitHub, choose **Code → Codespaces → Create codespace on main**. The container has Node 22, `http-server` and Playwright (Chromium) installed, and serves the board on port 8080 (forwarded automatically). Open it in your normal browser from the **Ports** tab (globe icon); VS Code's embedded Simple Browser can't open private forwarded ports. Run `node --version` or `npx playwright --version` in the terminal to check.
+The repository includes a `.devcontainer` config. On GitHub, choose **Code → Codespaces → Create codespace on main**. The container has Node 22 and the project's dev dependencies (Playwright with Chromium, `http-server`) installed by `npm install`, and serves the board on port 8080 (forwarded automatically). Open it in your normal browser from the **Ports** tab (globe icon); VS Code's embedded Simple Browser can't open private forwarded ports. Run `node --version` or `npx playwright --version` in the terminal to check.
 
 ### Supabase settings for Codespaces
 
